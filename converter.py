@@ -15,3 +15,7 @@ def ensure_temperature(value: float) -> float:
 
 def to_fahrenheit(celsius: float) -> float:
     return ensure_temperature(celsius) * 9 / 5 + 32
+
+
+def to_celsius(fahrenheit: float) -> float:
+    return (ensure_temperature(fahrenheit) - 32) * 5 / 9

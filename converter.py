@@ -11,3 +11,7 @@ def ensure_temperature(value: float) -> float:
     if not math.isfinite(result):
         raise ValueError("temperature must be finite")
     return result
+
+
+def to_fahrenheit(celsius: float) -> float:
+    return ensure_temperature(celsius) * 9 / 5 + 32

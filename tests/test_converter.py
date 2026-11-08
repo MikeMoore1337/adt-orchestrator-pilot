@@ -2,7 +2,7 @@
 
 import unittest
 
-from converter import ensure_temperature, to_fahrenheit
+from converter import ensure_temperature, to_celsius, to_fahrenheit
 
 
 class BaseConverterTests(unittest.TestCase):
@@ -29,6 +29,25 @@ class FahrenheitTests(unittest.TestCase):
                              (float("inf"), ValueError), (float("-inf"), ValueError)):
             with self.subTest(value=value), self.assertRaises(error):
                 to_fahrenheit(value)
+
+
+class CelsiusTests(unittest.TestCase):
+    def test_converts_fahrenheit(self):
+        for fahrenheit, celsius in ((32, 0), (212, 100), (-40, -40)):
+            with self.subTest(fahrenheit=fahrenheit):
+                self.assertEqual(celsius, to_celsius(fahrenheit))
+
+    def test_roundtrips_both_directions(self):
+        for value in (-40, 0, 37.5, 100):
+            with self.subTest(value=value):
+                self.assertAlmostEqual(value, to_celsius(to_fahrenheit(value)))
+                self.assertAlmostEqual(value, to_fahrenheit(to_celsius(value)))
+
+    def test_rejects_invalid_input(self):
+        for value, error in ((True, TypeError), (float("nan"), ValueError),
+                             (float("inf"), ValueError), (float("-inf"), ValueError)):
+            with self.subTest(value=value), self.assertRaises(error):
+                to_celsius(value)
 
 
 if __name__ == "__main__":

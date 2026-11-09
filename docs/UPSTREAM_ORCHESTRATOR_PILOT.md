@@ -5,7 +5,7 @@
 - Authoritative engine: https://github.com/issue-orchestrator/issue-orchestrator
 - Pinned upstream SHA: `d4a79824ccd806089cf3f70ec632d39b8ee255ea`; no auto-upgrade.
 - Selected repository: `MikeMoore1337/adt-orchestrator-pilot`, target `main`.
-- Only new synthetic Issues [#7](../issues/7) and [#8](../issues/8), label `adt-io570-pilot-20261109`. #8 has `Depends-on: #7`.
+- Only new synthetic Issues [#7](https://github.com/MikeMoore1337/adt-orchestrator-pilot/issues/7) and [#8](https://github.com/MikeMoore1337/adt-orchestrator-pilot/issues/8), label `adt-io570-pilot-20261109`. #8 has `Depends-on: #7`.
 - Candidate upstream config: `.issue-orchestrator/config/modes/upstream-pilot/main.yaml`; pilot scope: `.issue-orchestrator/io570-scope.json`.
 - A YAML config is not a running agent. No start, no OS-level credential isolation, no SDK provider adapter and no autonomous E2E are demonstrated.
 - The upstream `codex` provider invokes Codex CLI, which is **not authorized** in this pilot. Existing SDK ChatGPT auth does not prove upstream compatibility.

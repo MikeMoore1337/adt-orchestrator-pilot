@@ -8,6 +8,9 @@ repo:
 worktrees:
   base: "../adt-orchestrator-pilot-worktrees"
   base_branch_override: main
+  # Draft-branch pilot only: seed worktrees from this exact checked-out HEAD.
+  # Before persistent deployment on main, switch to an reviewed immutable seed policy.
+  seed_ref: HEAD
 
 agents:
   "agent:dev":

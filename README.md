@@ -1,5 +1,7 @@
 # Issue Orchestrator E2E pilot
 
+Новый исходный пилот оригинального Issue-Orchestrator 0.10.0 (Issue #570) подготовлен, но **не активирован**. Состояние: `BLOCKED_PROVIDER_COMPATIBILITY`. См. [отдельные правила](docs/UPSTREAM_ORCHESTRATOR_PILOT.md). Ранее завершённые Issues #1-#3 относились к ручному Codex Desktop, а не к автономному исходному движку.
+
 Временный публичный репозиторий для проверки очереди GitHub Issues через Codex Desktop.
 Содержит только синтетический Python-код, без секретов и настоящих проектов.
 

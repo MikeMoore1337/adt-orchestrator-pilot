@@ -1,0 +1,24 @@
+{
+  "upstream": {
+    "repository": "issue-orchestrator/issue-orchestrator",
+    "version": "0.10.0",
+    "sha": "d4a79824ccd806089cf3f70ec632d39b8ee255ea"
+  },
+  "target": {
+    "repository": "MikeMoore1337/adt-orchestrator-pilot",
+    "branch": "main",
+    "issues": [
+      7,
+      8
+    ],
+    "label": "adt-io570-pilot-20261109",
+    "dependency": "Depends-on: #7"
+  },
+  "constraints": {
+    "wip": 1,
+    "human_merge": true,
+    "allowed_runtime": false,
+    "provider": "BLOCKED_PROVIDER_COMPATIBILITY",
+    "e2e": "NOT_VERIFIED"
+  }
+}

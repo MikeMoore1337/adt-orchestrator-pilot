@@ -1,6 +1,7 @@
-# SOURCE ONLY. Do NOT activate. Provider compatibility/security not verified.
+# SOURCE ONLY. Do NOT activate until host security, subscription login and issue-scope preflight pass.
+# Owner authorizes Codex CLI via ChatGPT, NOT API-key billing.
 # Original issue-orchestrator v0.10.0, pinned d4a79824ccd806089cf3f70ec632d39b8ee255ea
-# Selection requires explicit --mode upstream-pilot after separate owner approval.
+# Select explicitly via --mode upstream-pilot after the scoped pilot runtime preflight.
 repo:
   name: MikeMoore1337/adt-orchestrator-pilot
 

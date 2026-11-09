@@ -9,7 +9,6 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
-import re
 import stat
 import subprocess
 import unittest
@@ -93,8 +92,9 @@ class OriginalGuardrailContracts(unittest.TestCase):
             "issue_orchestrator.entrypoints.cli_tools.prepush_check -v",
             script,
         )
-        self.assertIsNone(
-            re.search(r"(?m)^elif \\[ -x /", script),
+        self.assertNotIn(
+            "elif [ -x /",
+            script,
             "Host-specific absolute Python fallback must not be committed",
         )
         prepush = (ROOT / ".githooks/pre-push").read_text(encoding="utf-8")

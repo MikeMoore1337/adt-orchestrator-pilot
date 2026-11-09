@@ -24,3 +24,8 @@ print(to_celsius(212))   # 100.0
 ```powershell
 py -3.14 -m unittest discover -s tests -v
 ```
+
+
+## Происхождение защитных хуков
+
+Генерируемые скрипты `.codex/`, `.githooks/pre-push` и `scripts/` содержат части оригинального Issue-Orchestrator 0.10.0 под Apache-2.0. Оригинальные `LICENSE` и `NOTICE` сохранены в [third_party/issue-orchestrator](third_party/issue-orchestrator/README.md). Код очереди и оркестратора не копировался.

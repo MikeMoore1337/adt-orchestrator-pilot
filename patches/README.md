@@ -5,7 +5,7 @@
 ## Provenance
 
 - Official upstream: https://github.com/openai/codex
-- Official signed release tag: `rust-v0.167.0`
+- Official annotated but **unsigned** release tag: `rust-v0.167.0` (verified via GitHub tag object `verification.reason=unsigned`). Trust and reproducibility are anchored to the explicit release Git SHA, not a nonexistent tag signature.
 - Immutable release Git commit: `086ccc833bc9cf01024ad2dd6af7dbd421b6bf9a`
 - Affected original Git blobs: `bwrap.rs=11959d0c02248f090a568efd5b53ee1fa0e6ad9c`, `bwrap_tests.rs=9f53e2c9e72406e59605bf1a6f7560040b33dfbc`
 - Upstream reports: https://github.com/openai/codex/issues/40433 and https://github.com/openai/codex/issues/52651
@@ -26,6 +26,8 @@ git -C "$HOME/projects/codex-io570-src" rev-parse HEAD
 python3 scripts/apply_codex_regular_file_fix.py "$HOME/projects/codex-io570-src"
 python3 scripts/apply_codex_regular_file_fix.py "$HOME/projects/codex-io570-src" --apply
 ```
+
+The first CI Rust build failed before compilation because the official release's `Cargo.lock` required dependency graph resolution and `--locked` forbade it. CI now records `RESOLVED_CARGO_LOCK_SHA256` in the downloadable build provenance and uses that resolved lock for subsequent Rust test/build commands. This means the release SOURCE is pinned but the resolved dependency graph must be evaluated independently before production use.
 
 Source-only application does **not** make any existing Codex process safe. Building an official-source patched CLI and validating it requires a Rust 1.95.0 toolchain and original Codex dependencies. Do not replace the owner's original `~/.codex` release. Install any tested patched binary only as a separate isolated copy, with an independently verified checksum and a verified ChatGPT login.
 

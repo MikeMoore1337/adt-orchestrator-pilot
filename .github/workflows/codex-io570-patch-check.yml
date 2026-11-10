@@ -39,7 +39,7 @@ jobs:
     name: Build isolated patched Codex CLI (source only, no model)
     needs: patch-source
     runs-on: ubuntu-24.04
-    timeout-minutes: 28
+    timeout-minutes: 36
     env:
       CARGO_INCREMENTAL: "0"
     steps:
@@ -63,6 +63,19 @@ jobs:
           python3 scripts/apply_codex_regular_file_fix.py "${RUNNER_TEMP}/codex-io570" --apply
           git -C "${RUNNER_TEMP}/codex-io570" diff --check
           test "$(git -C "${RUNNER_TEMP}/codex-io570" diff --name-only | wc -l)" -eq 2
+      - name: Resolve pinned-release Cargo dependency lock with Rust 1.95.0
+        shell: bash
+        timeout-minutes: 12
+        run: |
+          set -euo pipefail
+          cd "${RUNNER_TEMP}/codex-io570/codex-rs"
+          # Official v0.167.0 source requires one Cargo.lock resolution step:
+          # the release build recipe itself does not use --locked initially.
+          # After resolution all compilation commands use this exact lock.
+          cargo metadata --format-version 1 > /dev/null
+          lock_sha="$(sha256sum Cargo.lock | cut -d' ' -f1)"
+          echo "RESOLVED_CARGO_LOCK_SHA256=${lock_sha}" >> "${GITHUB_ENV}"
+          echo "RESOLVED_CARGO_LOCK_SHA256=${lock_sha}"
       - name: Rust regression test - exact-file roots retain directory protections
         shell: bash
         timeout-minutes: 15
@@ -86,6 +99,8 @@ jobs:
             "086ccc833bc9cf01024ad2dd6af7dbd421b6bf9a" \
             > "${GITHUB_WORKSPACE}/output/BUILD_PROVENANCE.txt"
           printf 'PATCHED_SANDBOX=regular-file-metadata-masks-only\n' \
+            >> "${GITHUB_WORKSPACE}/output/BUILD_PROVENANCE.txt"
+          printf 'RESOLVED_CARGO_LOCK_SHA256=%s\n' "${RESOLVED_CARGO_LOCK_SHA256}" \
             >> "${GITHUB_WORKSPACE}/output/BUILD_PROVENANCE.txt"
           echo "PATCHED_CODEX_CLI_BUILD=PASS"
       - name: Publish binary for manual native WSL2 verification

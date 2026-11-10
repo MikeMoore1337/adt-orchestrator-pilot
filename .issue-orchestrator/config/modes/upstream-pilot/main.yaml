@@ -58,7 +58,10 @@ validation:
 filtering:
   label: "adt-io570-pilot-20261109"
   exclude_labels: ["HOLD", "blocked"]
-  max_to_start: 2
+  # Phase 1: admit only #7, never other issues with the same mutable label.
+  # Phase 2: explicitly select #8 after human merge, post-merge CI and #7 CLOSED.
+  issue: 7
+  max_to_start: 1
 
 tech_lead:
   enabled: false

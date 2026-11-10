@@ -34,3 +34,64 @@ jobs:
           git -C "${RUNNER_TEMP}/codex-io570" diff --exit-code -- codex-rs/Cargo.toml codex-rs/Cargo.lock
           test "$(git -C "${RUNNER_TEMP}/codex-io570" diff --name-only | wc -l)" -eq 2
           echo "OFFICIAL_CODEX_PATCH_APPLY=PASS"
+
+  build-patched-cli:
+    name: Build isolated patched Codex CLI (source only, no model)
+    needs: patch-source
+    runs-on: ubuntu-24.04
+    timeout-minutes: 28
+    env:
+      CARGO_INCREMENTAL: "0"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Install official Linux build dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libcap-dev pkg-config
+      - name: Rust 1.95.0 used by pinned official source
+        uses: dtolnay/rust-toolchain@e081816240890017053eacbb1bdf337761dc5582 # 1.95.0
+        with:
+          toolchain: "1.95.0"
+          components: "rustfmt"
+      - name: Fetch and patch official Codex v0.167.0, no forked engine
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --filter=blob:none --depth 1 --branch rust-v0.167.0 https://github.com/openai/codex.git "${RUNNER_TEMP}/codex-io570"
+          python3 scripts/apply_codex_regular_file_fix.py "${RUNNER_TEMP}/codex-io570" --apply
+          git -C "${RUNNER_TEMP}/codex-io570" diff --check
+          test "$(git -C "${RUNNER_TEMP}/codex-io570" diff --name-only | wc -l)" -eq 2
+      - name: Rust regression test - exact-file roots retain directory protections
+        shell: bash
+        timeout-minutes: 15
+        run: |
+          set -euo pipefail
+          cd "${RUNNER_TEMP}/codex-io570/codex-rs"
+          cargo test --locked -p codex-linux-sandbox --lib \
+            writable_git_ref_file_does_not_get_directory_metadata_children -- --nocapture
+      - name: Compile isolated Linux CLI from same reviewed original source
+        shell: bash
+        timeout-minutes: 12
+        run: |
+          set -euo pipefail
+          cd "${RUNNER_TEMP}/codex-io570/codex-rs"
+          cargo build --locked -p codex-cli --bin codex --profile dev-small
+          target/dev-small/codex --version | grep -F "codex-cli 0.167.0"
+          mkdir -p "${GITHUB_WORKSPACE}/output/bin"
+          cp target/dev-small/codex "${GITHUB_WORKSPACE}/output/bin/codex"
+          (cd "${GITHUB_WORKSPACE}/output" && sha256sum bin/codex > SHA256SUMS)
+          printf 'OFFICIAL_CODEX_SOURCE_SHA=%s\n' \
+            "086ccc833bc9cf01024ad2dd6af7dbd421b6bf9a" \
+            > "${GITHUB_WORKSPACE}/output/BUILD_PROVENANCE.txt"
+          printf 'PATCHED_SANDBOX=regular-file-metadata-masks-only\n' \
+            >> "${GITHUB_WORKSPACE}/output/BUILD_PROVENANCE.txt"
+          echo "PATCHED_CODEX_CLI_BUILD=PASS"
+      - name: Publish binary for manual native WSL2 verification
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: codex-io570-patched-linux-x86_64
+          path: output/
+          retention-days: 3
+          if-no-files-found: error

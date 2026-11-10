@@ -146,6 +146,16 @@ class OriginalGuardrailContracts(unittest.TestCase):
         self.assertIn("  seed_ref: origin/main", config)
         probe = ROOT / "scripts/probe_linked_codex_sandbox.py"
         compile(probe.read_text(encoding="utf-8"), str(probe), "exec")
+        guarded = ROOT / "scripts/start_guarded_pilot.sh"
+        shell = subprocess.run(
+            ["bash", "-n", str(guarded)], capture_output=True, text=True
+        )
+        self.assertEqual(shell.returncode, 0, shell.stderr)
+        wrapper = guarded.read_text(encoding="utf-8")
+        self.assertIn("scripts/probe_linked_codex_sandbox.py", wrapper)
+        self.assertIn("exec issue-orchestrator", wrapper)
+        self.assertNotIn("danger-full-access", wrapper)
+        self.assertNotIn("bypassPermissions", wrapper)
         self.assertIn("  seed_ref: origin/main", config)
         self.assertNotIn("  seed_ref: HEAD", config)
         self.assertIn("  enabled: false", config)

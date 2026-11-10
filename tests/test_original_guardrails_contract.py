@@ -142,6 +142,9 @@ class OriginalGuardrailContracts(unittest.TestCase):
         self.assertNotIn("  issue: 8", config)
         self.assertIn("  max_to_start: 2", config)
         self.assertIn("    max_concurrent_sessions: 1", config)
+        self.assertIn("    session_timeout_minutes: 20", config)
+        self.assertIn("    timeout_minutes: 15", config)
+        self.assertIn("    timeout_minutes: 10", config)
         self.assertIn('  label: "adt-io570-pilot-20261109"', config)
         self.assertIn("  seed_ref: origin/main", config)
         probe = ROOT / "scripts/probe_linked_codex_sandbox.py"

@@ -19,7 +19,8 @@ agents:
     ai_system: codex
     sandbox: true
     reviewer: "agent:reviewer"
-    timeout_minutes: 45
+    # Small synthetic pilot: fail promptly if a coding session stalls.
+    timeout_minutes: 15
     provider_args:
       approval_mode: default
       sandbox: workspace-write
@@ -28,7 +29,7 @@ agents:
     provider: codex
     ai_system: codex
     sandbox: true
-    timeout_minutes: 30
+    timeout_minutes: 10
     provider_args:
       approval_mode: default
       sandbox: workspace-write
@@ -36,7 +37,7 @@ agents:
 execution:
   concurrency:
     max_concurrent_sessions: 1
-    session_timeout_minutes: 60
+    session_timeout_minutes: 20
   terminal_adapter: subprocess
 
 review:

@@ -1,0 +1,114 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Managed by issue-orchestrator setup-guardrails: pre-push
+
+HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+LOG_FILE="$HOOK_DIR/pre-push.log"
+PROJECT_HOOK="$HOOK_DIR/pre-push.project"
+VERIFY_SCRIPT="$REPO_ROOT/scripts/verify-pr.sh"
+
+MANAGED_MARKER='Managed by issue-orchestrator setup-guardrails: pre-push'
+LEGACY_MANAGED_MARKER='Managed by issue-orchestrator harden-repo: pre-push'
+
+log() {
+  printf "%s %s\n" "$(date -Iseconds)" "$1" >> "$LOG_FILE"
+}
+
+# --- issue-orchestrator pre-push refs (generated from infra/hooks/pre_push_refs.py) ---
+PUSH_REFS_FILE=""
+
+# Read git's ref lines once so every consumer can be handed the same input.
+capture_push_refs() {
+  PUSH_REFS_FILE="$(mktemp "${TMPDIR:-/tmp}/io-pre-push-refs.XXXXXX")"
+  trap 'rm -f "$PUSH_REFS_FILE"' EXIT
+  if [ -t 0 ]; then
+    return 0
+  fi
+  cat > "$PUSH_REFS_FILE"
+}
+
+# Succeeds only when there is at least one ref line and every line deletes a
+# remote ref. Anything else (no lines, a blank or malformed line, any update)
+# fails, so the caller runs its gate.
+push_is_delete_only() {
+  local refs_file="$1"
+  local ref_lines=0
+  local local_ref="" local_sha="" remote_ref="" remote_sha="" extra=""
+  local zero_sha='^(0{40}|0{64})$'
+  local object_sha='^([0-9a-f]{40}|[0-9a-f]{64})$'
+  while read -r local_ref local_sha remote_ref remote_sha extra || [ -n "$local_ref" ]; do
+    ref_lines=$((ref_lines + 1))
+    [ "$local_ref" = "(delete)" ] || return 1
+    [ -z "$extra" ] || return 1
+    [[ "$local_sha" =~ $zero_sha ]] || return 1
+    [[ "$remote_ref" == refs/* ]] || return 1
+    [[ "$remote_sha" =~ $object_sha ]] || return 1
+  done < "$refs_file"
+  [ "$ref_lines" -gt 0 ]
+}
+# --- end issue-orchestrator pre-push refs ---
+capture_push_refs
+log "repo-pre-push-started"
+
+is_managed_wrapper() {
+  grep -qF "$MANAGED_MARKER" "$1" 2>/dev/null || grep -qF "$LEGACY_MANAGED_MARKER" "$1" 2>/dev/null
+}
+
+
+# Recursion guard: never exec pre-push.project if it contains the managed
+# marker. That means it is a copy of this wrapper (corruption) and executing
+# it would forkbomb the push.
+#
+# MAIN-REPO POLICY: log + skip the project hook, continue to verify-pr.
+# Stranding the operator (unable to push from the main checkout) is worse
+# than pushing with the repo's lint/test gate temporarily bypassed — they
+# can still run verify-pr, and doctor will flag the corruption for repair.
+# The worktree wrapper takes the opposite stance (hard-fail) because
+# worktrees are disposable — see _chained_hook_script in _worktree_hooks.py.
+if [ -x "$PROJECT_HOOK" ] && is_managed_wrapper "$PROJECT_HOOK"; then
+  log "project-hook-skipped reason=managed-marker-detected path=$PROJECT_HOOK"
+  echo "pre-push: refusing to exec managed wrapper as project hook: $PROJECT_HOOK" >&2
+elif [ -x "$PROJECT_HOOK" ]; then
+  log "project-hook-starting"
+  if "$PROJECT_HOOK" "$@" < "$PUSH_REFS_FILE"; then
+    log "project-hook exit=0"
+  else
+    project_exit=$?
+    log "project-hook exit=$project_exit"
+    exit "$project_exit"
+  fi
+else
+  log "project-hook-skipped"
+fi
+
+if [ ! -x "$VERIFY_SCRIPT" ]; then
+  log "verify-script-missing"
+  echo "pre-push: missing executable $VERIFY_SCRIPT" >&2
+  exit 1
+fi
+
+run_verify_pr() {
+  log "verify-pr-starting"
+  if "$VERIFY_SCRIPT" < "$PUSH_REFS_FILE"; then
+    log "verify-pr exit=0"
+  else
+    verify_exit=$?
+    log "verify-pr exit=$verify_exit"
+    exit "$verify_exit"
+  fi
+
+}
+
+# A push that only deletes remote refs pushes no code: there is nothing for
+# verify-pr to validate. push_is_delete_only fails closed (see
+# infra/hooks/pre_push_refs.py), so any update, or no ref lines at all, runs it.
+if push_is_delete_only "$PUSH_REFS_FILE"; then
+  log "verify-pr-skipped reason=delete-only"
+  echo "pre-push: delete-only push; skipping verify-pr" >&2
+else
+  run_verify_pr "$@"
+fi
+
+log "repo-pre-push-completed"

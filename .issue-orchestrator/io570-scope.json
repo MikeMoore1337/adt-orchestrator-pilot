@@ -1,0 +1,29 @@
+{
+  "upstream": {
+    "repository": "issue-orchestrator/issue-orchestrator",
+    "version": "0.10.0",
+    "sha": "d4a79824ccd806089cf3f70ec632d39b8ee255ea"
+  },
+  "target": {
+    "repository": "MikeMoore1337/adt-orchestrator-pilot",
+    "branch": "main",
+    "issues": [
+      7,
+      8
+    ],
+    "label": "adt-io570-pilot-20261109",
+    "dependency": "Depends-on: #7"
+  },
+  "constraints": {
+    "wip": 1,
+    "human_merge": true,
+    "allowed_runtime": false,
+    "provider": "CODEX_CLI_CHATGPT_OWNER_REPORTED",
+    "e2e": "NOT_VERIFIED",
+    "codex_cli_owner_permitted": true,
+    "api_key_billing_allowed": false,
+    "host_cli_authenticated": true,
+    "host_cli_auth_evidence": "OWNER_REPORTED_WSL2_CHATGPT_LOGIN",
+    "immutable_issue_scope_enforced": false
+  }
+}

@@ -68,13 +68,14 @@ print("SEQUENTIAL_QUEUE_CONFIG=PASS")
 PY
 
 # Owner-controlled synthetic pilot scope only, no unexpected labeled issues.
-mapfile -t SELECTED < <(
+SELECTED_RAW="$(
   gh issue list --repo MikeMoore1337/adt-orchestrator-pilot \
     --state all --limit 100 --label adt-io570-pilot-20261109 \
     --json number --jq '.[].number' | sort -n
-)
-[[ "${#SELECTED[@]}" -gt 0 ]] ||
+)" || fail "Cannot retrieve exact synthetic pilot label membership"
+[[ -n "$SELECTED_RAW" ]] ||
   fail "No pilot-labeled issues"
+mapfile -t SELECTED <<< "$SELECTED_RAW"
 for issue in "${SELECTED[@]}"; do
   [[ "$issue" == "7" || "$issue" == "8" ]] ||
     fail "Unexpected pilot-labeled Issue #$issue"

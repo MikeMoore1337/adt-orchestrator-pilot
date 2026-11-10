@@ -47,9 +47,11 @@ def require_environment() -> Path:
     if not binary_name:
         raise RuntimeError("codex CLI is not on PATH")
     binary = Path(binary_name).resolve(strict=True)
-    expected = home / ".local/share/adt-io570/codex-0.167.0/bin/codex"
-    if binary != expected.resolve(strict=True):
-        raise RuntimeError("Expected the isolated Codex 0.167.0 binary first in PATH")
+    from install_patched_codex import attest
+    expected = attest()
+    if binary != expected:
+        raise RuntimeError("Expected the CI-attested patched Codex binary first in PATH")
+    print("PATCHED_CODEX_ATTESTATION=PASS")
     if command(str(binary), "--version") != "codex-cli 0.167.0":
         raise RuntimeError("Codex version mismatch")
     if any(os.environ.get(name) for name in ("CODEX_HOME", "OPENAI_API_KEY", "CODEX_API_KEY")):
@@ -154,7 +156,7 @@ def probe(runtime: Path) -> bool:
             env["CODEX_HOME"] = str(runtime)
             result = subprocess.run(
                 [
-                    str((home / ".local/share/adt-io570/codex-0.167.0/bin/codex").resolve()),
+                    str((home / ".local/share/adt-io570/codex-0.167.0-io570-patched/bin/codex").resolve()),
                     "sandbox", "--permission-profile", "issue_orchestrator_scope",
                     "-C", str(linked), *overrides, "--", "/bin/sh", "-c", shell
                 ],

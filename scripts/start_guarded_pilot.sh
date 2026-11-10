@@ -27,7 +27,7 @@ ORIGINAL_ROOT="$HOME/projects/issue-orchestrator"
 [[ -x "$ORIGINAL_ROOT/.venv/bin/python" ]] ||
   fail "Original engine Python virtual environment not found"
 export ISSUE_ORCHESTRATOR_PYTHON="$ORIGINAL_ROOT/.venv/bin/python"
-export PATH="$HOME/.local/share/adt-io570/codex-0.167.0/bin:$ORIGINAL_ROOT/.venv/bin:$PATH"
+export PATH="$HOME/.local/share/adt-io570/codex-0.167.0-io570-patched/bin:$ORIGINAL_ROOT/.venv/bin:$PATH"
 export ISSUE_ORCHESTRATOR_CODEX_RUNTIME_ROOT="$HOME/.local/state/adt-io570/codex-runtime"
 unset CODEX_HOME
 hash -r
@@ -41,6 +41,8 @@ hash -r
   'import issue_orchestrator; print("ORIGINAL_ENGINE_IMPORT=PASS")' ||
   fail "Original Issue-Orchestrator cannot import"
 
+"$ISSUE_ORCHESTRATOR_PYTHON" "$ROOT/scripts/install_patched_codex.py" --verify-only ||
+  fail "Patched Codex binary or build provenance failed integrity verification"
 codex --version
 LOGIN="$(codex login status 2>&1)" ||
   fail "Codex login status failed"

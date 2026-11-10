@@ -31,4 +31,18 @@ Source-only application does **not** make any existing Codex process safe. Build
 
 Before any real model task, re-run `scripts/probe_linked_codex_sandbox.py` **in WSL2** against the isolated patched binary. Require `SHELL_BOOT=PASS`, `GIT_COMMIT=PASS`, `GH_CANARY_DENY=PASS`, `OUTSIDE_WRITE_DENY=PASS` and `LINKED_SANDBOX_GATE=PASS`. If Git commit fails because a missing `.lock` file cannot be created under a read-only parent, that is an additional security/compatibility blocker. Do **not** widen base `.git/refs`, disable the sandbox, reset the blocked Issue #7 or invoke the model.
 
-**Status: source patch prepared; build and native execution NOT VERIFIED.**
+## Install a verified CI-built copy (not yet released into main)
+
+After the dedicated GitHub Actions build has completed SUCCESS **and produced an artifact**:
+
+```bash
+gh run download <EXACT_SUCCESSFUL_BUILD_RUN_ID> --repo MikeMoore1337/adt-orchestrator-pilot --name codex-io570-patched-linux-x86_64 --dir "$HOME/.local/state/adt-io570/build-artifact"
+python3 scripts/install_patched_codex.py "$HOME/.local/state/adt-io570/build-artifact"
+export PATH="$HOME/.local/share/adt-io570/codex-0.167.0-io570-patched/bin:$PATH"
+unset CODEX_HOME
+python3 scripts/probe_linked_codex_sandbox.py
+```
+
+The installer checks the exact Rust source commit, build-provenance marker and SHA-256 of the downloaded executable, refuses overwrite, keeps a separate original release intact and does not read credentials. Download the artifact from the **verified run** only. `scripts/start_guarded_pilot.sh` now refuses unpatched executables even if their version matches.
+
+**Status: source patch prepared; native linked worktree execution NOT VERIFIED.**

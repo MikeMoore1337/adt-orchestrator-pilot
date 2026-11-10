@@ -58,10 +58,10 @@ validation:
 filtering:
   label: "adt-io570-pilot-20261109"
   exclude_labels: ["HOLD", "blocked"]
-  # Phase 1: admit only #7, never other issues with the same mutable label.
-  # Phase 2: explicitly select #8 after human merge, post-merge CI and #7 CLOSED.
-  issue: 7
-  max_to_start: 1
+  # Synthetic repository only: exclusive, owner-controlled label admits #7/#8.
+  # WIP=1 and Depends-on: #7 ensure #8 cannot start before #7 is closed.
+  # No single-issue override: retain one continuous original-engine queue.
+  max_to_start: 2
 
 tech_lead:
   enabled: false

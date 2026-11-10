@@ -65,11 +65,11 @@ jobs:
       - name: Verify artifact and native OS boundary without an AI call
         shell: bash
         env:
-          ISSUE_ORCHESTRATOR_CODEX_RUNTIME_ROOT: "${runner.home}/.local/state/adt-io570/codex-runtime"
           PYTHONNOUSERSITE: "1"
         run: |
           set -euo pipefail
           export PATH="$HOME/.local/share/adt-io570/codex-0.167.0-io570-patched/bin:$PATH"
+          export ISSUE_ORCHESTRATOR_CODEX_RUNTIME_ROOT="$HOME/.local/state/adt-io570/codex-runtime"
           unset CODEX_HOME OPENAI_API_KEY CODEX_API_KEY GH_TOKEN GITHUB_TOKEN || true
           python3 scripts/install_patched_codex.py --verify-only
           "${RUNNER_TEMP}/io-venv/bin/python" - <<'PY'

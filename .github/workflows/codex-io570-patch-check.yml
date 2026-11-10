@@ -1,0 +1,36 @@
+name: Codex 0.167.0 exact-file Linux sandbox patch check
+
+on:
+  pull_request:
+    paths:
+      - 'patches/**'
+      - 'scripts/apply_codex_regular_file_fix.py'
+      - 'tests/test_original_guardrails_contract.py'
+      - '.github/workflows/codex-io570-patch-check.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  patch-source:
+    name: Pinned official Codex source patch applies
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Download original Codex source at exact release tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --filter=blob:none --depth 1 --branch rust-v0.167.0 https://github.com/openai/codex.git "${RUNNER_TEMP}/codex-io570"
+          test "$(git -C "${RUNNER_TEMP}/codex-io570" rev-parse HEAD)" = "086ccc833bc9cf01024ad2dd6af7dbd421b6bf9a"
+      - name: Verify original source blobs and apply audited Rust fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/apply_codex_regular_file_fix.py "${RUNNER_TEMP}/codex-io570"
+          python3 scripts/apply_codex_regular_file_fix.py "${RUNNER_TEMP}/codex-io570" --apply
+          git -C "${RUNNER_TEMP}/codex-io570" diff --check
+          git -C "${RUNNER_TEMP}/codex-io570" diff --exit-code -- codex-rs/Cargo.toml codex-rs/Cargo.lock
+          test "$(git -C "${RUNNER_TEMP}/codex-io570" diff --name-only | wc -l)" -eq 2
+          echo "OFFICIAL_CODEX_PATCH_APPLY=PASS"

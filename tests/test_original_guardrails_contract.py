@@ -149,6 +149,13 @@ class OriginalGuardrailContracts(unittest.TestCase):
         self.assertIn("  seed_ref: origin/main", config)
         probe = ROOT / "scripts/probe_linked_codex_sandbox.py"
         compile(probe.read_text(encoding="utf-8"), str(probe), "exec")
+        patcher = ROOT / "scripts/apply_codex_regular_file_fix.py"
+        compile(patcher.read_text(encoding="utf-8"), str(patcher), "exec")
+        patch = (ROOT / "patches/codex-rust-v0.167.0-regular-file-bwrap.patch").read_text(encoding="utf-8")
+        self.assertIn("append_metadata_path_masks_for_writable_root", patch)
+        self.assertIn("writable_git_ref_file_does_not_get_directory_metadata_children", patch)
+        self.assertIn("let protected_metadata_names: &[String] = if root.is_file()", patch)
+
         guarded = ROOT / "scripts/start_guarded_pilot.sh"
         shell = subprocess.run(
             ["bash", "-n", str(guarded)], capture_output=True, text=True

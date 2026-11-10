@@ -1,0 +1,85 @@
+name: Codex patched CLI no-model linked worktree gate
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/codex-io570-linked-sandbox-gate.yml'
+      - 'scripts/probe_linked_codex_sandbox.py'
+      - 'scripts/install_patched_codex.py'
+      - 'patches/**'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  linked-worktree:
+    name: Original Codex profile with linked Git worktree
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Fetch exact previously successful Codex binary artifact
+        shell: bash
+        env:
+          GH_TOKEN: "${github.token}"
+        run: |
+          set -euo pipefail
+          gh run download 42871093777 \
+            --repo MikeMoore1337/adt-orchestrator-pilot \
+            --name codex-io570-patched-linux-x86_64 \
+            --dir "${RUNNER_TEMP}/build"
+          test -s "${RUNNER_TEMP}/build/bin/codex"
+          echo "PINNED_ARTIFACT_DOWNLOADED=YES"
+      - name: Create isolated CI fixture and original pinned engine
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/projects/issue-orchestrator"
+          git -C "$HOME/projects/issue-orchestrator" init -q
+          git -C "$HOME/projects/issue-orchestrator" remote add origin \
+            https://github.com/issue-orchestrator/issue-orchestrator.git
+          git -C "$HOME/projects/issue-orchestrator" fetch -q --depth=1 origin \
+            d4a79824ccd806089cf3f70ec632d39b8ee255ea
+          git -C "$HOME/projects/issue-orchestrator" checkout -q --detach FETCH_HEAD
+          test "$(git -C "$HOME/projects/issue-orchestrator" rev-parse HEAD)" \
+            = "d4a79824ccd806089cf3f70ec632d39b8ee255ea"
+          python3 -m venv "${RUNNER_TEMP}/io-venv"
+          "${RUNNER_TEMP}/io-venv/bin/python" -m pip install -q --disable-pip-version-check \
+            "$HOME/projects/issue-orchestrator"
+          install -d -m700 "$HOME/.local/share/adt-io570"
+          install -d -m700 "$HOME/.local/share/adt-io570/codex-0.167.0-io570-patched/bin"
+          cp "${RUNNER_TEMP}/build/bin/codex" \
+            "$HOME/.local/share/adt-io570/codex-0.167.0-io570-patched/bin/codex"
+          cp "${RUNNER_TEMP}/build/SHA256SUMS" \
+            "${RUNNER_TEMP}/build/BUILD_PROVENANCE.txt" \
+            "$HOME/.local/share/adt-io570/codex-0.167.0-io570-patched/"
+          chmod 700 "$HOME/.local/share/adt-io570/codex-0.167.0-io570-patched/bin/codex"
+          install -d -m700 "$HOME/.config/gh"
+          install -m600 /dev/null "$HOME/.config/gh/hosts.yml"
+          # CI-only fake auth fixture: no actual GitHub or OpenAI credentials.
+          install -d -m700 "$HOME/.codex"
+          printf '{}\n' > "$HOME/.codex/auth.json"
+          chmod 600 "$HOME/.codex/auth.json"
+          echo "PINNED_ORIGINAL_ENGINE_FIXTURE=YES"
+      - name: Verify artifact and native OS boundary without an AI call
+        shell: bash
+        env:
+          ISSUE_ORCHESTRATOR_CODEX_RUNTIME_ROOT: "${runner.home}/.local/state/adt-io570/codex-runtime"
+          PYTHONNOUSERSITE: "1"
+        run: |
+          set -euo pipefail
+          export PATH="$HOME/.local/share/adt-io570/codex-0.167.0-io570-patched/bin:$PATH"
+          unset CODEX_HOME OPENAI_API_KEY CODEX_API_KEY GH_TOKEN GITHUB_TOKEN || true
+          python3 scripts/install_patched_codex.py --verify-only
+          "${RUNNER_TEMP}/io-venv/bin/python" - <<'PY'
+          from issue_orchestrator.infra.hooks.codex_session import (
+              prepare_codex_runtime_home,
+              verify_codex_runtime_home,
+          )
+          prepare_codex_runtime_home()
+          assert verify_codex_runtime_home()
+          print("MANAGED_FAKE_AUTH_RUNTIME=PASS")
+          PY
+          "${RUNNER_TEMP}/io-venv/bin/python" \
+            scripts/probe_linked_codex_sandbox.py

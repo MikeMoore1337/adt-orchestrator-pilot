@@ -22,7 +22,8 @@
     "e2e": "NOT_VERIFIED",
     "codex_cli_owner_permitted": true,
     "api_key_billing_allowed": false,
-    "host_cli_authenticated": false,
+    "host_cli_authenticated": true,
+    "host_cli_auth_evidence": "OWNER_REPORTED_WSL2_CHATGPT_LOGIN",
     "immutable_issue_scope_enforced": false
   }
 }

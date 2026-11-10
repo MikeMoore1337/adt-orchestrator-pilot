@@ -1,6 +1,6 @@
 # Issue Orchestrator E2E pilot
 
-Новый исходный пилот оригинального Issue-Orchestrator 0.10.0 (Issue #570) подготовлен, но **не активирован**. Состояние: `HOST_RUNTIME_PREFLIGHT_PASS / E2E_NOT_VERIFIED`. См. [отдельные правила](docs/UPSTREAM_ORCHESTRATOR_PILOT.md). Ранее завершённые Issues #1-#3 относились к ручному Codex Desktop, а не к автономному исходному движку.
+Исходная конфигурация оригинального Issue-Orchestrator 0.10.0 (Issue #570) подготовлена, но **движок не активирован**. До первого рабочего сеанса PR #9 должен быть вручную слит в защищённую ветку `main`: `seed_ref: origin/main` намеренно исключает запуск с неполной базой. Состояние: `HOST_RUNTIME_PREFLIGHT_PASS / E2E_NOT_VERIFIED`. См. [отдельные правила](docs/UPSTREAM_ORCHESTRATOR_PILOT.md). Ранее завершённые Issues #1-#3 относились к ручному Codex Desktop, а не к автономному исходному движку.
 
 Временный публичный репозиторий для проверки оригинального Issue-Orchestrator через Codex CLI в WSL2, с авторизацией ChatGPT.
 Содержит только синтетический Python-код, без секретов и настоящих проектов.

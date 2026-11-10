@@ -1,9 +1,9 @@
 # Instructions for original Issue-Orchestrator 0.10.0 synthetic pilot
 
-**SOURCE-ONLY / WAITING_HOST_RUNTIME_AND_SECURITY.** This repository is an authorized disposable E2E fixture, not a model execution authorization.
+**SOURCE-ONLY PREPARATION / HOST PREFLIGHT PASS / ENGINE NOT ACTIVATED.** This is a disposable E2E fixture, not a model execution authorization. Worktrees MUST seed from protected `origin/main` after this preparation PR is human merged; never seed from a draft PR HEAD.
 
 - The ONLY future orchestration engine is original issue-orchestrator at pinned SHA `d4a79824ccd806089cf3f70ec632d39b8ee255ea`. Never use Toolkit's legacy `scripts/issue_orchestrator.py`, `scripts/issue_supervisor.py`, or `scripts/issue_supervisor_sdk.py` for this pilot.
-- Owner has explicitly permitted **Codex CLI with ChatGPT sign-in** after reporting `codex login status` -> `Logged in using ChatGPT` on Windows. This does NOT verify the actual orchestrator runtime, plan quota or authorization to start unrelated tasks. No API-key billing, paid APIs or Claude CLI; keep host security and scoped activation gates.
+- Owner permits **Codex CLI with ChatGPT sign-in**. WSL2 ChatGPT-account login, separately relocated 0.167.0 executable, managed runtime home and no-model native sandbox profile canary have passed operator-reported preflight. These do NOT verify a real model session or authorize unrelated tasks. No API-key billing, paid APIs or Claude CLI; retain restricted sandbox and scoped activation gates.
 - Only Issues #7 and #8 marked `adt-io570-pilot-20261109`, with #8 depending on #7. Do not expand the selected scope based on new labels.
 - One issue/implementation session at a time (WIP=1); keep tech-lead reserved concurrency disabled.
 - All code changes stay inside this repository, in separate worktree branches. Do not change real projects or deploy production.

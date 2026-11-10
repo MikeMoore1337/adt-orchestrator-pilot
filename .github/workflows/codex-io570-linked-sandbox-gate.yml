@@ -22,7 +22,7 @@ jobs:
       - name: Fetch exact previously successful Codex binary artifact
         shell: bash
         env:
-          GH_TOKEN: "${github.token}"
+          GH_TOKEN: "${{ github.token }}"
         run: |
           set -euo pipefail
           gh run download 42871093777 \

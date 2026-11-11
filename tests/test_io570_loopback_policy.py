@@ -102,6 +102,8 @@ class IO570ManagedProxyPolicy(unittest.TestCase):
         compile(text, "probe_io570_loopback_proxy.py", "exec")
         self.assertIn("IO570_MANAGED_PROXY_GATE=PASS", text)
         self.assertIn('("callback", "external", "other-host", "direct")', text)
+        self.assertIn('elif mode == "direct":', text)
+        self.assertIn('url = "https://example.com/"', text)
         self.assertIn('"_DENY=PASS"', text)
         # The original false-negative: DENIED was printed with process exit 0.
         # Keep a nonzero exit for denied requests, and never accept a reachable

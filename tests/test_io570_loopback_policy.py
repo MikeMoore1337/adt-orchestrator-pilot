@@ -109,7 +109,10 @@ class IO570ManagedProxyPolicy(unittest.TestCase):
         # Keep a nonzero exit for denied requests, and never accept a reachable
         # HTTP response (including HTTPError) as proof of egress confinement.
         self.assertIn('print("RESULT=DENIED:" + type(exc).__name__)', text)
-        self.assertIn('print("RESULT=HTTP_RESPONSE:" + str(exc.code))', text)
+        self.assertIn('print("RESULT=PROXY_POLICY_DENIED:" + reason)', text)
+        self.assertIn('print("RESULT=HTTP_RESPONSE:" + str(exc.code) +', text)
+        self.assertIn('result.returncode == 2', text)
+        self.assertIn('exc.code == 403 and reason in denied_reasons', text)
         self.assertIn('sys.exit(2)', text)
         self.assertIn('sys.exit(4)', text)
         self.assertIn('_OBSERVED_EXIT=', text)
@@ -158,6 +161,35 @@ class IO570ProbeExitContracts(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 4, result.stderr + result.stdout)
         self.assertIn("RESULT=HTTP_RESPONSE:405", result.stdout)
+
+    def test_codex_proxy_403_with_allowlist_marker_is_denial(self) -> None:
+        result = self.run_fake_request(
+            "urllib.error.HTTPError('http://localhost:12345/', 403, 'Forbidden', "
+            "{'x-proxy-error': 'blocked-by-allowlist'}, None)"
+        )
+        self.assertEqual(result.returncode, 2, result.stderr + result.stdout)
+        self.assertIn("RESULT=PROXY_POLICY_DENIED:blocked-by-allowlist", result.stdout)
+
+    def test_http_403_without_proxy_marker_is_not_denial(self) -> None:
+        result = self.run_fake_request(
+            "urllib.error.HTTPError('http://localhost:12345/', 403, 'Forbidden', {}, None)"
+        )
+        self.assertEqual(result.returncode, 4, result.stderr + result.stdout)
+        self.assertIn("RESULT=HTTP_RESPONSE:403", result.stdout)
+
+    def test_method_policy_403_does_not_prove_host_denial(self) -> None:
+        result = self.run_fake_request(
+            "urllib.error.HTTPError('http://localhost:12345/', 403, 'Forbidden', "
+            "{'x-proxy-error': 'blocked-by-method-policy'}, None)"
+        )
+        self.assertEqual(result.returncode, 4, result.stderr + result.stdout)
+
+    def test_proxy_marker_on_non403_response_is_not_denial(self) -> None:
+        result = self.run_fake_request(
+            "urllib.error.HTTPError('http://localhost:12345/', 404, 'Not found', "
+            "{'x-proxy-error': 'blocked-by-allowlist'}, None)"
+        )
+        self.assertEqual(result.returncode, 4, result.stderr + result.stdout)
 
 
 if __name__ == "__main__":

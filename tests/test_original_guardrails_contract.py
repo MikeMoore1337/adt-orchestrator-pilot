@@ -147,14 +147,14 @@ class OriginalGuardrailContracts(unittest.TestCase):
         self.assertIn("    timeout_minutes: 10", config)
         self.assertIn('  label: "adt-io570-pilot-20261109"', config)
         self.assertIn("  seed_ref: origin/main", config)
-        probe = ROOT / "scripts/probe_linked_codex_sandbox.py"
+        probe = ROOT / "scripts/probe_namespaced_codex_sandbox.py"
         compile(probe.read_text(encoding="utf-8"), str(probe), "exec")
-        patcher = ROOT / "scripts/apply_codex_regular_file_fix.py"
+        patcher = ROOT / "scripts/apply_orchestrator_git_ref_fix.py"
         compile(patcher.read_text(encoding="utf-8"), str(patcher), "exec")
-        patch = (ROOT / "patches/codex-rust-v0.167.0-regular-file-bwrap.patch").read_text(encoding="utf-8")
-        self.assertIn("append_metadata_path_masks_for_writable_root", patch)
-        self.assertIn("writable_git_ref_file_does_not_get_directory_metadata_children", patch)
-        self.assertIn("let protected_metadata_names: &[String] = if root.is_file()", patch)
+        patch = (ROOT / "upstream/issue-orchestrator-0.10.0-isolated-git-refs.patch").read_text(encoding="utf-8")
+        self.assertIn("ISSUE_ORCHESTRATOR_ISOLATED_GIT_REF_DIRS", patch)
+        self.assertIn("_isolated_branch_directory_rules", patch)
+        self.assertNotIn("danger-full-access", patch)
 
         guarded = ROOT / "scripts/start_guarded_pilot.sh"
         shell = subprocess.run(

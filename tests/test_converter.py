@@ -1,8 +1,9 @@
 """Baseline tests. Codex adds more tests while resolving Issues."""
 
+import math
 import unittest
 
-from converter import ensure_temperature, to_celsius, to_fahrenheit
+from converter import ensure_temperature, to_celsius, to_fahrenheit, to_kelvin
 
 
 class BaseConverterTests(unittest.TestCase):
@@ -48,6 +49,32 @@ class CelsiusTests(unittest.TestCase):
                              (float("inf"), ValueError), (float("-inf"), ValueError)):
             with self.subTest(value=value), self.assertRaises(error):
                 to_celsius(value)
+
+
+class KelvinTests(unittest.TestCase):
+    def test_converts_celsius(self):
+        for celsius, kelvin in ((0, 273.15), (-273.15, 0), (100, 373.15),
+                                (-40, 233.15), (37.5, 310.65)):
+            with self.subTest(celsius=celsius):
+                result = to_kelvin(celsius)
+                self.assertIsInstance(result, float)
+                self.assertAlmostEqual(kelvin, result)
+
+    def test_rejects_below_absolute_zero(self):
+        for value in (-274, math.nextafter(-273.15, -math.inf)):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                to_kelvin(value)
+
+    def test_accepts_just_above_absolute_zero(self):
+        self.assertGreater(to_kelvin(math.nextafter(-273.15, math.inf)), 0)
+
+    def test_rejects_invalid_input(self):
+        for value, error in ((True, TypeError), (False, TypeError),
+                             ("0", TypeError), (None, TypeError),
+                             (1j, TypeError), (float("nan"), ValueError),
+                             (float("inf"), ValueError), (float("-inf"), ValueError)):
+            with self.subTest(value=value), self.assertRaises(error):
+                to_kelvin(value)
 
 
 if __name__ == "__main__":

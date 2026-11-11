@@ -37,8 +37,9 @@ jobs:
           python3 scripts/apply_orchestrator_git_ref_fix.py "$root" --apply
           sandbox="src/issue_orchestrator/execution/agent_runner_providers/sandbox.py"
           test "$(git -C "$root" hash-object "$sandbox")" = "fca26cf3e6e88b984e2758005f3ce9e5019838ab"
-          git -C "$root" apply --check upstream/issue-orchestrator-0.10.0-io570-loopback-proxy.patch
-          git -C "$root" apply upstream/issue-orchestrator-0.10.0-io570-loopback-proxy.patch
+          patch_file="$GITHUB_WORKSPACE/upstream/issue-orchestrator-0.10.0-io570-loopback-proxy.patch"
+          git -C "$root" apply --check "$patch_file"
+          git -C "$root" apply "$patch_file"
           git -C "$root" diff --check
           expected="$(printf 'src/issue_orchestrator/adapters/worktree/_worktree.py\nsrc/issue_orchestrator/domain/branch_naming.py\nsrc/issue_orchestrator/execution/agent_runner_providers/git_worktree_access.py\nsrc/issue_orchestrator/execution/agent_runner_providers/sandbox.py')"
           test "$(git -C "$root" diff --name-only)" = "$expected"

@@ -81,10 +81,11 @@ class IO570ManagedProxyPolicy(unittest.TestCase):
                     "~/.config/gh",
                 ):
                     self.assertIn(required, actual)
+                outside_path = base_dir.parent / "io570-outside-pilot-root"
                 outsider = type(scope)(
-                    working_directory=Path(tmp) / "outside",
-                    read_roots=(Path(tmp) / "outside",),
-                    write_roots=(Path(tmp) / "outside",),
+                    working_directory=outside_path,
+                    read_roots=(outside_path,),
+                    write_roots=(outside_path,),
                     egress="model-only",
                     deny_env=scope.deny_env,
                     deny_read_files=scope.deny_read_files,

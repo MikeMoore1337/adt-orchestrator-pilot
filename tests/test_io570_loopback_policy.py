@@ -1,7 +1,9 @@
 """Original pinned engine: explicit IO570 managed loopback opt-in, no models."""
 from pathlib import Path
+import ast
 import os
 import subprocess
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -110,6 +112,50 @@ class IO570ManagedProxyPolicy(unittest.TestCase):
         self.assertIn('sys.exit(4)', text)
         self.assertIn('_OBSERVED_EXIT=', text)
         self.assertNotIn('str(CODEX), "exec"', text)
+
+
+class IO570ProbeExitContracts(unittest.TestCase):
+    """Offline regression: network denial must not exit with code zero."""
+
+    @staticmethod
+    def client() -> str:
+        root = Path(__file__).resolve().parents[1]
+        tree = ast.parse((root / "scripts/probe_io570_loopback_proxy.py").read_text())
+        code = [
+            node.value.value for node in ast.walk(tree)
+            if isinstance(node, ast.Assign)
+            and any(isinstance(t, ast.Name) and t.id == "client" for t in node.targets)
+            and isinstance(node.value, ast.Constant)
+            and isinstance(node.value.value, str)
+        ]
+        if len(code) != 1:
+            raise AssertionError("Expected exactly one embedded no-model client")
+        return code[0]
+
+    def run_fake_request(self, failure: str) -> subprocess.CompletedProcess[str]:
+        prelude = (
+            "import urllib.error, urllib.request\n"
+            "class DummyOpener:\n"
+            " def open(self, *args, **kwargs):\n"
+            f"  raise {failure}\n"
+            "urllib.request.build_opener = lambda *a, **kw: DummyOpener()\n"
+        )
+        return subprocess.run(
+            [sys.executable, "-c", prelude + self.client(), "external", "12345"],
+            capture_output=True, text=True, timeout=10, check=False,
+        )
+
+    def test_denied_network_exits_two(self) -> None:
+        result = self.run_fake_request("urllib.error.URLError('synthetic policy deny')")
+        self.assertEqual(result.returncode, 2, result.stderr + result.stdout)
+        self.assertIn("RESULT=DENIED:URLError", result.stdout)
+
+    def test_http_response_is_not_a_denial(self) -> None:
+        result = self.run_fake_request(
+            "urllib.error.HTTPError('https://example.com/', 405, 'Method Not Allowed', {}, None)"
+        )
+        self.assertEqual(result.returncode, 4, result.stderr + result.stdout)
+        self.assertIn("RESULT=HTTP_RESPONSE:405", result.stdout)
 
 
 if __name__ == "__main__":

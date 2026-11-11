@@ -183,9 +183,11 @@ class OriginalGuardrailContracts(unittest.TestCase):
         self.assertEqual(wrapper.count(terminator), 1)
         python_source = wrapper.split(marker, 1)[1].split(terminator, 1)[0]
         compile(python_source, "pilot-launch-config.py", "exec")
-        self.assertIn('assert config.repo == "MikeMoore1337/adt-orchestrator-pilot"', python_source)
-        self.assertIn('assert config.agents["agent:dev"].provider_args.get("execution_mode") == "exec"', python_source)
+        self.assertIn('"repository": config.repo == "MikeMoore1337/adt-orchestrator-pilot"', python_source)
+        self.assertIn('"codex_one_shot": config.agents["agent:dev"].provider_args.get("execution_mode") == "exec"', python_source)
         self.assertIn("config.retry.interrupted_sessions.enabled is False", python_source)
+        self.assertIn('raise SystemExit("SEQUENTIAL_QUEUE_CONFIG=FAIL:', python_source)
+        self.assertNotIn("\nassert ", python_source)
 
     def test_pilot_uses_bounded_one_shot_coding_and_no_auto_retry(self) -> None:
         config = (

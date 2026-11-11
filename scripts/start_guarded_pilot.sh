@@ -29,14 +29,15 @@ ORIGINAL_ROOT="$HOME/projects/issue-orchestrator"
 export ISSUE_ORCHESTRATOR_PYTHON="$ORIGINAL_ROOT/.venv/bin/python"
 export PATH="$HOME/.local/share/adt-io570/codex-0.167.0/bin:$ORIGINAL_ROOT/.venv/bin:$PATH"
 export ISSUE_ORCHESTRATOR_ISOLATED_GIT_REF_DIRS=1
-PATCHED_ENGINE="$HOME/.local/state/adt-io570/original-engine-namespaced"
+PATCHED_ENGINE="$HOME/.local/state/adt-io570/original-engine-namespaced-loopback"
 [[ "$(git -C "$PATCHED_ENGINE" rev-parse HEAD 2>/dev/null)" == \
   "d4a79824ccd806089cf3f70ec632d39b8ee255ea" ]] ||
   fail "Pinned original engine patch worktree missing or wrong source SHA"
 EXPECTED_FILES="$(printf '%s\n' \
   'src/issue_orchestrator/adapters/worktree/_worktree.py' \
   'src/issue_orchestrator/domain/branch_naming.py' \
-  'src/issue_orchestrator/execution/agent_runner_providers/git_worktree_access.py')"
+  'src/issue_orchestrator/execution/agent_runner_providers/git_worktree_access.py' \
+  'src/issue_orchestrator/execution/agent_runner_providers/sandbox.py')"
 [[ "$(git -C "$PATCHED_ENGINE" diff --name-only)" == "$EXPECTED_FILES" ]] ||
   fail "Patched original engine contains unknown or missing source modifications"
 git -C "$PATCHED_ENGINE" diff --check ||
@@ -124,12 +125,23 @@ grep -q '^Depends-on: #7' <<< "$GH8_BODY" ||
   fail "Issue #8 is missing its original Depends-on: #7 directive"
 echo "PILOT_GITHUB_SCOPE=PASS"
 
+# Never inherit a potentially wider caller-supplied opt-in.
+[[ -z "${ISSUE_ORCHESTRATOR_IO570_LOOPBACK_PROXY:-}" ]] ||
+  fail "Caller supplied an unreviewed loopback proxy override"
+
 # No model invocation. If linked Git sandbox cannot start, fail in seconds.
 "$ISSUE_ORCHESTRATOR_PYTHON" "$ROOT/scripts/probe_namespaced_codex_sandbox.py" ||
   fail "Namespaced Git ref sandbox failed: no model started"
 
 issue-orchestrator doctor --config "$CONFIG" ||
   fail "Original Issue-Orchestrator doctor failed"
+
+# Only after all repo/agent/label checks: permit 127.0.0.1 through the
+# native managed network proxy. The patch refuses other workspace roots.
+export ISSUE_ORCHESTRATOR_IO570_LOOPBACK_PROXY=1
+"$ISSUE_ORCHESTRATOR_PYTHON" "$ROOT/scripts/probe_io570_loopback_proxy.py" ||
+  fail "Managed loopback proxy did not pass the no-model security gate"
+
 echo "ORIGINAL_ENGINE_START=ORIGINAL_ENGINE_ONLY"
 echo "Continuous WIP=1 queue: wait for PR/merge/CI, no per-Issue relaunch."
 exec issue-orchestrator --config "$CONFIG" start \

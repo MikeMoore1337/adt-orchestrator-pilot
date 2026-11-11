@@ -98,8 +98,9 @@ class IO570ManagedProxyPolicy(unittest.TestCase):
         text = (root / "scripts/probe_io570_loopback_proxy.py").read_text()
         compile(text, "probe_io570_loopback_proxy.py", "exec")
         self.assertIn("IO570_MANAGED_PROXY_GATE=PASS", text)
-        self.assertIn("DIRECT_DENY=PASS", text.upper().replace("DIRECT", "DIRECT"))
-        self.assertNotIn("codex exec", text.lower())
+        self.assertIn('("callback", "external", "other-host", "direct")', text)
+        self.assertIn('"_DENY=PASS"', text)
+        self.assertNotIn('str(CODEX), "exec"', text)
 
 
 if __name__ == "__main__":

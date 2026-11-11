@@ -125,6 +125,10 @@ if mode == "external":
     url = "https://example.com/"
 elif mode == "other-host":
     url = f"http://localhost:{port}/io570-callback"
+elif mode == "direct":
+    # A direct loopback request is the *desired* callback, not an egress
+    # bypass. Probe an EXTERNAL destination without using a proxy instead.
+    url = "https://example.com/"
 
 if mode == "direct":
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))

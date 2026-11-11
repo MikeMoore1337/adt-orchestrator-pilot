@@ -1,0 +1,52 @@
+name: Original Issue-Orchestrator namespace branch Git boundary
+
+on:
+  pull_request:
+    paths:
+      - 'upstream/**'
+      - 'scripts/apply_orchestrator_git_ref_fix.py'
+      - 'tests/test_isolated_ref_git_policy.py'
+      - '.github/workflows/io570-isolated-git-refs.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  original-source-git:
+    name: Original upstream Git ref directory confinement
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
+        with:
+          python-version: '3.14'
+      - name: Fetch original immutable Issue-Orchestrator source
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${RUNNER_TEMP}/io570-upstream"
+          mkdir -p "$root"
+          git -C "$root" init -q
+          git -C "$root" remote add origin https://github.com/issue-orchestrator/issue-orchestrator.git
+          git -C "$root" fetch --depth=1 origin d4a79824ccd806089cf3f70ec632d39b8ee255ea
+          git -C "$root" checkout -q --detach FETCH_HEAD
+          python3 scripts/apply_orchestrator_git_ref_fix.py "$root"
+          python3 scripts/apply_orchestrator_git_ref_fix.py "$root" --apply
+          git -C "$root" diff --check
+          expected="$(printf 'src/issue_orchestrator/adapters/worktree/_worktree.py\nsrc/issue_orchestrator/domain/branch_naming.py\nsrc/issue_orchestrator/execution/agent_runner_providers/git_worktree_access.py')"
+          test "$(git -C "$root" diff --name-only)" = "$expected"
+          echo "PINNED_ORIGINAL_ENGINE_PATCH=PASS"
+      - name: Offline Git add and commit with shared refs read-only
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${RUNNER_TEMP}/io570-upstream"
+          python3 -m venv "${RUNNER_TEMP}/io570-venv"
+          "${RUNNER_TEMP}/io570-venv/bin/python" -m pip install -q --disable-pip-version-check "$root"
+          export ISSUE_ORCHESTRATOR_ISOLATED_GIT_REF_DIRS=1
+          export IO570_PATCHED_ORCHESTRATOR_SOURCE="$root"
+          export PYTHONPATH="$root/src"
+          "${RUNNER_TEMP}/io570-venv/bin/python" -m unittest discover \
+            -s tests -p test_isolated_ref_git_policy.py -v
+          echo "ORIGINAL_ENGINE_NAMESPACED_GIT_DAC=PASS"

@@ -70,7 +70,7 @@ diff --git a/src/issue_orchestrator/execution/agent_runner_providers/git_worktre
      if access.head_ref is None:
          paths = (access.git_dir / "HEAD",)
      else:
-@@ -208,6 +257,12 @@
+@@ -208,5 +257,11 @@
              (str(objects / "pack"), "read"),
          )
      )
@@ -84,7 +84,6 @@ diff --git a/src/issue_orchestrator/execution/agent_runner_providers/git_worktre
 +    else:
 +        entries.extend(_head_rules(access))
 +    return entries
- 
 diff --git a/src/issue_orchestrator/adapters/worktree/_worktree.py b/src/issue_orchestrator/adapters/worktree/_worktree.py
 --- a/src/issue_orchestrator/adapters/worktree/_worktree.py
 +++ b/src/issue_orchestrator/adapters/worktree/_worktree.py

@@ -147,8 +147,20 @@ try:
         print("RESULT=UNEXPECTED_NETWORK_ACCESS")
         sys.exit(3)
 except urllib.error.HTTPError as exc:
-    # A reachable HTTP service/proxy is not proof of network isolation.
-    print("RESULT=HTTP_RESPONSE:" + str(exc.code))
+    # Codex managed proxy documents HTTP 403 + x-proxy-error for policy
+    # refusal. Never accept an ordinary 403 from an accessible origin as a
+    # denial; the proxy-specific marker is required.
+    reason = str(exc.headers.get("x-proxy-error", "") or "").strip().lower()
+    denied_reasons = {
+        "blocked-by-allowlist",
+        "blocked-by-denylist",
+        "blocked-by-policy",
+    }
+    if exc.code == 403 and reason in denied_reasons:
+        print("RESULT=PROXY_POLICY_DENIED:" + reason)
+        sys.exit(2)
+    print("RESULT=HTTP_RESPONSE:" + str(exc.code) +
+          " PROXY_REASON=" + reason[:60])
     sys.exit(4)
 except (urllib.error.URLError, TimeoutError, OSError) as exc:
     if mode == "callback":
@@ -186,8 +198,11 @@ except (urllib.error.URLError, TimeoutError, OSError) as exc:
                         print("LOOPBACK_CALLBACK_GATE=PASS")
                     else:
                         if (
-                            result.returncode != 0
-                            and result_text.startswith("RESULT=DENIED:")
+                            result.returncode == 2
+                            and (
+                                result_text.startswith("RESULT=DENIED:")
+                                or result_text.startswith("RESULT=PROXY_POLICY_DENIED:")
+                            )
                             and not received.is_set()
                         ):
                             print(mode.upper().replace("-", "_") + "_DENY=PASS")

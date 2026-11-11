@@ -12,6 +12,7 @@ from threading import Event, Thread
 import os
 import subprocess
 import tempfile
+import urllib.error
 import urllib.request
 
 from issue_orchestrator.domain.models import AgentConfig
@@ -114,6 +115,7 @@ def main() -> int:
                 client = r'''
 import os
 import sys
+import urllib.error
 import urllib.request
 
 mode, port = sys.argv[1:]
@@ -140,11 +142,17 @@ try:
     else:
         print("RESULT=UNEXPECTED_NETWORK_ACCESS")
         sys.exit(3)
-except Exception as exc:
+except urllib.error.HTTPError as exc:
+    # A reachable HTTP service/proxy is not proof of network isolation.
+    print("RESULT=HTTP_RESPONSE:" + str(exc.code))
+    sys.exit(4)
+except (urllib.error.URLError, TimeoutError, OSError) as exc:
     if mode == "callback":
         print("RESULT=CALLBACK_FAIL:" + type(exc).__name__)
         sys.exit(2)
     print("RESULT=DENIED:" + type(exc).__name__)
+    # Denial must be a nonzero exit. Zero previously caused false FAILs.
+    sys.exit(2)
 '''
                 env = os.environ.copy()
                 env["CODEX_HOME"] = str(verify_codex_runtime_home())
@@ -180,7 +188,13 @@ except Exception as exc:
                         ):
                             print(mode.upper().replace("-", "_") + "_DENY=PASS")
                         else:
-                            print(mode.upper().replace("-", "_") + "_DENY=FAIL")
+                            label = mode.upper().replace("-", "_")
+                            print(label + "_DENY=FAIL")
+                            print(label + "_OBSERVED_EXIT=" + str(result.returncode))
+                            print(label + "_OBSERVED_RESULT=" + result_text[:220])
+                            if result.stderr.strip():
+                                print(label + "_SANDBOX_ERROR=" +
+                                      " ".join(result.stderr.splitlines())[-250:])
                             return 1
 
                 print("MODE=NO_MODEL_NO_GITHUB_API")

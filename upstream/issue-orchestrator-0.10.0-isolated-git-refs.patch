@@ -1,0 +1,131 @@
+diff --git a/src/issue_orchestrator/execution/agent_runner_providers/git_worktree_access.py b/src/issue_orchestrator/execution/agent_runner_providers/git_worktree_access.py
+--- a/src/issue_orchestrator/execution/agent_runner_providers/git_worktree_access.py
++++ b/src/issue_orchestrator/execution/agent_runner_providers/git_worktree_access.py
+@@ -2,8 +2,10 @@
+ 
+ from __future__ import annotations
+ 
+-from dataclasses import dataclass
+-from pathlib import Path, PurePosixPath
++from dataclasses import dataclass
++import os
++import re
++from pathlib import Path, PurePosixPath
+ 
+ from issue_orchestrator.domain.sandbox_scope import SandboxUnsupportedError
+ 
+@@ -171,7 +173,54 @@
+     return entries
+ 
+ 
+-def _head_rules(access: GitWorktreeAccess) -> list[tuple[str, str]]:
++_ISOLATED_BRANCH_NAMESPACE = re.compile(r"[1-9][0-9]*-[a-z0-9][a-z0-9-]*")
++
++
++def _isolated_branch_directory_rules(
++    access: GitWorktreeAccess,
++) -> list[tuple[str, str]]:
++    """Grant write only to one issue's ref/reflog directories, not shared refs.
++
++    Git needs to create a sibling .lock beside HEAD's loose branch ref. An
++    exact-file write permission cannot grant O_CREAT in a read-only parent.
++    A per-issue refs/heads/<issue-slug>/agent ref confines those operations.
++    """
++    if access.git_dir == access.common_dir or access.head_ref is None:
++        raise SandboxUnsupportedError(
++            "Isolated Git reference mode requires a linked worktree with symbolic HEAD"
++        )
++    relative = access.head_ref.relative_to(access.common_dir)
++    parts = relative.parts
++    if (
++        len(parts) != 4
++        or parts[:2] != ("refs", "heads")
++        or parts[3] != "agent"
++        or not _ISOLATED_BRANCH_NAMESPACE.fullmatch(parts[2])
++    ):
++        raise SandboxUnsupportedError(
++            "Isolated Git reference mode requires refs/heads/<issue-slug>/agent"
++        )
++    parent_ref = access.common_dir / "refs" / "heads" / parts[2]
++    parent_log = access.common_dir / "logs" / "refs" / "heads" / parts[2]
++    for root in (parent_ref, parent_log):
++        # Reject symlinks and unexpected sibling refs before granting any write.
++        if root.is_symlink() or not root.is_dir() or root.resolve() != root:
++            raise SandboxUnsupportedError(
++                f"Isolated branch Git directory is not a real directory: {root}"
++            )
++        children = {entry.name for entry in root.iterdir()}
++        if children != {"agent"} or not (root / "agent").is_file():
++            raise SandboxUnsupportedError(
++                f"Isolated branch Git directory must contain only agent ref: {root}"
++            )
++        if (root / "agent").is_symlink():
++            raise SandboxUnsupportedError(
++                f"Isolated branch Git metadata must not contain symlinks: {root}"
++            )
++    return [(str(parent_ref), "write"), (str(parent_log), "write")]
++
++
++def _head_rules(access: GitWorktreeAccess) -> list[tuple[str, str]]:
+     if access.head_ref is None:
+         paths = (access.git_dir / "HEAD",)
+     else:
+@@ -208,6 +257,12 @@
+             (str(objects / "pack"), "read"),
+         )
+     )
+-    entries.extend(_head_rules(access))
+-    return entries
++    if os.environ.get("ISSUE_ORCHESTRATOR_ISOLATED_GIT_REF_DIRS") == "1":
++        # Native directory permissions permit atomic .lock creation within
++        # this issue's namespace. Do NOT add exact writable regular files:
++        # Codex 0.167.0's Linux sandbox treats them as directory mount roots.
++        entries.extend(_isolated_branch_directory_rules(access))
++    else:
++        entries.extend(_head_rules(access))
++    return entries
+ 
+diff --git a/src/issue_orchestrator/adapters/worktree/_worktree.py b/src/issue_orchestrator/adapters/worktree/_worktree.py
+--- a/src/issue_orchestrator/adapters/worktree/_worktree.py
++++ b/src/issue_orchestrator/adapters/worktree/_worktree.py
+@@ -343,8 +343,10 @@
+         Branch name in format: {number}-{slugified-title}
+         Example: 123-add-user-authentication
+     """
+-    slug = slugify(issue_title, max_length=50)
+-    return f"{issue_number}-{slug}"
++    slug = slugify(issue_title, max_length=50)
++    if os.environ.get("ISSUE_ORCHESTRATOR_ISOLATED_GIT_REF_DIRS") == "1":
++        return f"{issue_number}-{slug}/agent"
++    return f"{issue_number}-{slug}"
+ 
+ 
+ # Regex pattern for extracting issue number from branch name
+diff --git a/src/issue_orchestrator/domain/branch_naming.py b/src/issue_orchestrator/domain/branch_naming.py
+--- a/src/issue_orchestrator/domain/branch_naming.py
++++ b/src/issue_orchestrator/domain/branch_naming.py
+@@ -2,8 +2,9 @@
+ 
+ from __future__ import annotations
+ 
+-import re
+-import unicodedata
++import os
++import re
++import unicodedata
+ 
+ 
+ BRANCH_ISSUE_PATTERN = re.compile(r"^(\d+)-")
+@@ -22,8 +23,10 @@
+ 
+ def generate_branch_name(issue_number: int, issue_title: str) -> str:
+     """Generate a branch name from issue number and title."""
+-    slug = slugify(issue_title, max_length=50)
+-    return f"{issue_number}-{slug}"
++    slug = slugify(issue_title, max_length=50)
++    if os.environ.get("ISSUE_ORCHESTRATOR_ISOLATED_GIT_REF_DIRS") == "1":
++        return f"{issue_number}-{slug}/agent"
++    return f"{issue_number}-{slug}"
+ 
+ 
+ def extract_issue_number_from_branch(branch_name: str) -> int | None:

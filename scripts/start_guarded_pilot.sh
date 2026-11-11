@@ -68,8 +68,7 @@ LOGIN="$(codex login status 2>&1)" ||
 echo "CODEX_CHATGPT_LOGIN=PASS"
 
 CONFIG=".issue-orchestrator/config/modes/upstream-pilot/main.yaml"
-"$ISSUE_ORCHESTRATOR_PYTHON" - "$CONFIG" <<'PY' ||
-  fail "Original queue configuration failed validation"
+if ! "$ISSUE_ORCHESTRATOR_PYTHON" - "$CONFIG" <<'PY'
 import sys
 from pathlib import Path
 from issue_orchestrator.infra.config import Config
@@ -83,8 +82,13 @@ assert config.filtering.max_to_start == 2
 assert config.review_enabled
 assert not config.merge_queue.enabled
 assert all(a.sandbox for a in config.agents.values())
+assert config.agents["agent:dev"].provider_args.get("execution_mode") == "exec"
+assert config.retry.interrupted_sessions.enabled is False
 print("SEQUENTIAL_QUEUE_CONFIG=PASS")
 PY
+then
+  fail "Original queue configuration failed validation"
+fi
 
 # Owner-controlled synthetic pilot scope only, no unexpected labeled issues.
 SELECTED_RAW="$(
@@ -104,6 +108,9 @@ GH7="$(gh issue view 7 --repo MikeMoore1337/adt-orchestrator-pilot \
   fail "Cannot read #7 status"
 if [[ "$GH7" == *"blocked-failed"* ]]; then
   fail "Issue #7 is blocked-failed. Preserve artifacts and fix the sandbox first"
+fi
+if [[ "$GH7" == *"io:auto-retried-interrupted-coding"* ]]; then
+  fail "Issue #7 has an interrupted-session retry marker; inspect the previous run before retrying"
 fi
 GH8_BODY="$(gh issue view 8 --repo MikeMoore1337/adt-orchestrator-pilot \
   --json body --jq '.body')" ||

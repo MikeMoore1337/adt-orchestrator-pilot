@@ -1,0 +1,95 @@
+diff --git a/src/issue_orchestrator/execution/agent_runner_providers/sandbox.py b/src/issue_orchestrator/execution/agent_runner_providers/sandbox.py
+--- a/src/issue_orchestrator/execution/agent_runner_providers/sandbox.py
++++ b/src/issue_orchestrator/execution/agent_runner_providers/sandbox.py
+@@ -503,10 +503,31 @@
+     return tuple(dict.fromkeys(paths))
+ 
+ 
+-def _codex_permission_profile(
+-    scope: SandboxScope,
+-    git_access: GitWorktreeAccess,
+-) -> str:
++def _io570_loopback_proxy(scope: SandboxScope) -> bool:
++    """Opt in only for the owner's disposable synthetic #570 worktrees.
++
++    This is not a generic port-restricted network capability: the Codex
++    managed proxy matches the host, not the callback server's exact port.
++    """
++    if os.environ.get("ISSUE_ORCHESTRATOR_IO570_LOOPBACK_PROXY") != "1":
++        return False
++    root = (Path.home() / "projects/adt-orchestrator-pilot-worktrees").resolve()
++    worktree = scope.working_directory.resolve()
++    if (
++        scope.egress != "model-only"
++        or worktree == root
++        or not worktree.is_relative_to(root)
++    ):
++        raise SandboxUnsupportedError(
++            "IO570 loopback proxy is restricted to the isolated pilot worktrees"
++        )
++    return True
++
++
++def _codex_permission_profile(
++    scope: SandboxScope,
++    git_access: GitWorktreeAccess,
++) -> str:
+     """Serialize the invocation-scoped Codex permission profile for *scope*."""
+     workspace_rules = _toml_inline_table(
+         [
+@@ -554,15 +575,26 @@
+             filesystem_entries.append((raw, _toml_string("deny")))
+             seen_denies.add(raw)
+ 
+-    filesystem = _toml_inline_table(filesystem_entries)
+-    network_enabled = "true" if scope.egress == "model+web" else "false"
+-    return (
+-        "{ "
+-        f"extends = {_toml_string(':workspace')}, "
+-        f"filesystem = {filesystem}, "
+-        f"network = {{ enabled = {network_enabled} }} "
+-        "}"
+-    )
++    filesystem = _toml_inline_table(filesystem_entries)
++    network_enabled = "true" if scope.egress == "model+web" else "false"
++    if _io570_loopback_proxy(scope):
++        # Only the disposable owner's WSL2 pilot. A host allowlist is not a
++        # port allowlist, so this must NOT be used for other repositories.
++        network = (
++            '{ enabled = true, allow_local_binding = false, '
++            'allow_upstream_proxy = false, enable_socks5 = false, '
++            'enable_socks5_udp = false, '
++            'domains = { "127.0.0.1" = "allow" } }'
++        )
++    else:
++        network = f"{{ enabled = {network_enabled} }}"
++    return (
++        "{ "
++        f"extends = {_toml_string(':workspace')}, "
++        f"filesystem = {filesystem}, "
++        f"network = {network} "
++        "}"
++    )
+ 
+ 
+ def _codex_workspace_roots(scope: SandboxScope) -> list[Path]:
+@@ -635,11 +667,14 @@
+             "-c",
+             f"web_search={_toml_string(web_search)}",
+         ]
+-    )
+-    return argv
+-
+-
+-class CodexSandboxAdapter:
++    )
++    if _io570_loopback_proxy(scope):
++        # Managed host-policy proxy, never direct/unrestricted networking.
++        argv.extend(["-c", "features.network_proxy=true"])
++    return argv
++
++
++class CodexSandboxAdapter:
+     """Codex permission-profile implementation of :class:`ProviderSandboxAdapter`."""
+ 
+     def apply_scope(self, scope: SandboxScope) -> list[str]:

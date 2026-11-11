@@ -138,9 +138,36 @@ class OriginalGuardrailContracts(unittest.TestCase):
         self.assertTrue(scope["constraints"]["host_cli_authenticated"])
         self.assertFalse(scope["constraints"]["immutable_issue_scope_enforced"])
         self.assertIn("max_concurrent_sessions: 1", config)
-        self.assertIn("  issue: 7", config)
-        self.assertIn("  max_to_start: 1", config)
+        self.assertNotIn("  issue: 7", config)
         self.assertNotIn("  issue: 8", config)
+        self.assertIn("  max_to_start: 2", config)
+        self.assertIn("    max_concurrent_sessions: 1", config)
+        self.assertIn("    session_timeout_minutes: 20", config)
+        self.assertIn("    timeout_minutes: 15", config)
+        self.assertIn("    timeout_minutes: 10", config)
+        self.assertIn('  label: "adt-io570-pilot-20261109"', config)
+        self.assertIn("  seed_ref: origin/main", config)
+        probe = ROOT / "scripts/probe_namespaced_codex_sandbox.py"
+        compile(probe.read_text(encoding="utf-8"), str(probe), "exec")
+        patcher = ROOT / "scripts/apply_orchestrator_git_ref_fix.py"
+        compile(patcher.read_text(encoding="utf-8"), str(patcher), "exec")
+        patch = (ROOT / "upstream/issue-orchestrator-0.10.0-isolated-git-refs.patch").read_text(encoding="utf-8")
+        self.assertIn("ISSUE_ORCHESTRATOR_ISOLATED_GIT_REF_DIRS", patch)
+        self.assertIn("_isolated_branch_directory_rules", patch)
+        self.assertNotIn("danger-full-access", patch)
+
+        guarded = ROOT / "scripts/start_guarded_pilot.sh"
+        shell = subprocess.run(
+            ["bash", "-n", str(guarded)], capture_output=True, text=True
+        )
+        self.assertEqual(shell.returncode, 0, shell.stderr)
+        wrapper = guarded.read_text(encoding="utf-8")
+        self.assertIn("scripts/probe_namespaced_codex_sandbox.py", wrapper)
+        self.assertIn("ISSUE_ORCHESTRATOR_ISOLATED_GIT_REF_DIRS=1", wrapper)
+        self.assertIn("ORIGINAL_ENGINE_NAMESPACED_SOURCE=PASS", wrapper)
+        self.assertIn("exec issue-orchestrator", wrapper)
+        self.assertNotIn("danger-full-access", wrapper)
+        self.assertNotIn("bypassPermissions", wrapper)
         self.assertIn("  seed_ref: origin/main", config)
         self.assertNotIn("  seed_ref: HEAD", config)
         self.assertIn("  enabled: false", config)

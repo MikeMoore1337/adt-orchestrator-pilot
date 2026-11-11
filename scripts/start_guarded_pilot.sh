@@ -27,7 +27,22 @@ ORIGINAL_ROOT="$HOME/projects/issue-orchestrator"
 [[ -x "$ORIGINAL_ROOT/.venv/bin/python" ]] ||
   fail "Original engine Python virtual environment not found"
 export ISSUE_ORCHESTRATOR_PYTHON="$ORIGINAL_ROOT/.venv/bin/python"
-export PATH="$HOME/.local/share/adt-io570/codex-0.167.0-io570-patched/bin:$ORIGINAL_ROOT/.venv/bin:$PATH"
+export PATH="$HOME/.local/share/adt-io570/codex-0.167.0/bin:$ORIGINAL_ROOT/.venv/bin:$PATH"
+export ISSUE_ORCHESTRATOR_ISOLATED_GIT_REF_DIRS=1
+PATCHED_ENGINE="$HOME/.local/state/adt-io570/original-engine-namespaced"
+[[ "$(git -C "$PATCHED_ENGINE" rev-parse HEAD 2>/dev/null)" == \
+  "d4a79824ccd806089cf3f70ec632d39b8ee255ea" ]] ||
+  fail "Pinned original engine patch worktree missing or wrong source SHA"
+EXPECTED_FILES="$(printf '%s\n' \
+  'src/issue_orchestrator/adapters/worktree/_worktree.py' \
+  'src/issue_orchestrator/domain/branch_naming.py' \
+  'src/issue_orchestrator/execution/agent_runner_providers/git_worktree_access.py')"
+[[ "$(git -C "$PATCHED_ENGINE" diff --name-only)" == "$EXPECTED_FILES" ]] ||
+  fail "Patched original engine contains unknown or missing source modifications"
+git -C "$PATCHED_ENGINE" diff --check ||
+  fail "Original engine patch has whitespace errors"
+export PYTHONPATH="$PATCHED_ENGINE/src"
+echo "ORIGINAL_ENGINE_NAMESPACED_SOURCE=PASS"
 export ISSUE_ORCHESTRATOR_CODEX_RUNTIME_ROOT="$HOME/.local/state/adt-io570/codex-runtime"
 unset CODEX_HOME
 hash -r
@@ -41,8 +56,10 @@ hash -r
   'import issue_orchestrator; print("ORIGINAL_ENGINE_IMPORT=PASS")' ||
   fail "Original Issue-Orchestrator cannot import"
 
-"$ISSUE_ORCHESTRATOR_PYTHON" "$ROOT/scripts/install_patched_codex.py" --verify-only ||
-  fail "Patched Codex binary or build provenance failed integrity verification"
+CODEX_EXECUTABLE="$(command -v codex)"
+[[ "$(readlink -f "$CODEX_EXECUTABLE")" == \
+  "$HOME/.local/share/adt-io570/codex-0.167.0/bin/codex" ]] ||
+  fail "Expected unchanged Codex CLI executable"
 codex --version
 LOGIN="$(codex login status 2>&1)" ||
   fail "Codex login status failed"
@@ -96,8 +113,8 @@ grep -q '^Depends-on: #7' <<< "$GH8_BODY" ||
 echo "PILOT_GITHUB_SCOPE=PASS"
 
 # No model invocation. If linked Git sandbox cannot start, fail in seconds.
-"$ISSUE_ORCHESTRATOR_PYTHON" "$ROOT/scripts/probe_linked_codex_sandbox.py" ||
-  fail "Linked-worktree native sandbox test failed; NO model started"
+"$ISSUE_ORCHESTRATOR_PYTHON" "$ROOT/scripts/probe_namespaced_codex_sandbox.py" ||
+  fail "Namespaced Git ref sandbox failed: no model started"
 
 issue-orchestrator doctor --config "$CONFIG" ||
   fail "Original Issue-Orchestrator doctor failed"

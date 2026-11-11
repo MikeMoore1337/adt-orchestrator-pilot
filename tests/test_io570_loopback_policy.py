@@ -101,6 +101,14 @@ class IO570ManagedProxyPolicy(unittest.TestCase):
         self.assertIn("IO570_MANAGED_PROXY_GATE=PASS", text)
         self.assertIn('("callback", "external", "other-host", "direct")', text)
         self.assertIn('"_DENY=PASS"', text)
+        # The original false-negative: DENIED was printed with process exit 0.
+        # Keep a nonzero exit for denied requests, and never accept a reachable
+        # HTTP response (including HTTPError) as proof of egress confinement.
+        self.assertIn('print("RESULT=DENIED:" + type(exc).__name__)', text)
+        self.assertIn('print("RESULT=HTTP_RESPONSE:" + str(exc.code))', text)
+        self.assertIn('sys.exit(2)', text)
+        self.assertIn('sys.exit(4)', text)
+        self.assertIn('_OBSERVED_EXIT=', text)
         self.assertNotIn('str(CODEX), "exec"', text)
 
 

@@ -5,6 +5,8 @@ on:
     paths:
       - 'upstream/**'
       - 'scripts/apply_orchestrator_git_ref_fix.py'
+      - 'scripts/prepare_namespaced_original_engine.sh'
+      - 'scripts/probe_io570_loopback_proxy.py'
       - 'tests/test_isolated_ref_git_policy.py'
       - '.github/workflows/io570-isolated-git-refs.yml'
 
@@ -33,8 +35,12 @@ jobs:
           git -C "$root" checkout -q --detach FETCH_HEAD
           python3 scripts/apply_orchestrator_git_ref_fix.py "$root"
           python3 scripts/apply_orchestrator_git_ref_fix.py "$root" --apply
+          sandbox="src/issue_orchestrator/execution/agent_runner_providers/sandbox.py"
+          test "$(git -C "$root" hash-object "$sandbox")" = "fca26cf3e6e88b984e2758005f3ce9e5019838ab"
+          git -C "$root" apply --check upstream/issue-orchestrator-0.10.0-io570-loopback-proxy.patch
+          git -C "$root" apply upstream/issue-orchestrator-0.10.0-io570-loopback-proxy.patch
           git -C "$root" diff --check
-          expected="$(printf 'src/issue_orchestrator/adapters/worktree/_worktree.py\nsrc/issue_orchestrator/domain/branch_naming.py\nsrc/issue_orchestrator/execution/agent_runner_providers/git_worktree_access.py')"
+          expected="$(printf 'src/issue_orchestrator/adapters/worktree/_worktree.py\nsrc/issue_orchestrator/domain/branch_naming.py\nsrc/issue_orchestrator/execution/agent_runner_providers/git_worktree_access.py\nsrc/issue_orchestrator/execution/agent_runner_providers/sandbox.py')"
           test "$(git -C "$root" diff --name-only)" = "$expected"
           echo "PINNED_ORIGINAL_ENGINE_PATCH=PASS"
       - name: Offline Git add and commit with shared refs read-only
@@ -49,4 +55,6 @@ jobs:
           export PYTHONPATH="$root/src"
           "${RUNNER_TEMP}/io570-venv/bin/python" -m unittest discover \
             -s tests -p test_isolated_ref_git_policy.py -v
+          "${RUNNER_TEMP}/io570-venv/bin/python" -m unittest discover \
+            -s tests -p test_io570_loopback_policy.py -v
           echo "ORIGINAL_ENGINE_NAMESPACED_GIT_DAC=PASS"

@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+import subprocess
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
@@ -41,6 +43,43 @@ class ScopedCallbackHandoffTests(unittest.TestCase):
         self.assertNotIn("IO570_TEST_VALUE", export)
         self.assertTrue(all(token not in ALIAS.upper() for token in ("KEY", "SECRET", "TOKEN")))
         self.assertIn("TOKEN", ORIGINAL)
+
+    def test_real_session_export_transfers_only_symbolic_scoped_bearer(self) -> None:
+        from issue_orchestrator.control.session_env import build_session_env_exports
+
+        cfg = SimpleNamespace(
+            control_api_port=0,
+            config_path=None,
+            configuration_mode="upstream-pilot",
+        )
+        endpoint = SimpleNamespace(resolve_port=lambda port: 19081)
+        with patch.dict(os.environ, {
+            OPT_IN: "1", ORIGINAL: "IO570_SYNTHETIC_VALUE"
+        }, clear=True):
+            export = build_session_env_exports(
+                config=cfg,
+                completion_path="/tmp/io570-completion.json",
+                session_id="io570-fake",
+                agent_label="agent:dev",
+                issue_number=7,
+                run_dir=Path("/tmp/io570-fake-run"),
+                worktree_path=Path("/tmp/io570-fake-worktree"),
+                callback_endpoint=endpoint,
+            )
+        self.assertIn("ISSUE_ORCHESTRATOR_API_PORT='19081'", export)
+        self.assertIn(ALIAS + "=", export)
+        self.assertNotIn("IO570_SYNTHETIC_VALUE", export)
+        shell = subprocess.run(
+            [
+                "bash", "-c",
+                export + "; printf '%s' \"$" + "{" + ALIAS + "}\"",
+            ],
+            env={"PATH": os.environ.get("PATH", "/usr/bin"),
+                 ORIGINAL: "IO570_SYNTHETIC_VALUE"},
+            capture_output=True, text=True, timeout=10, check=False,
+        )
+        self.assertEqual(shell.returncode, 0, "Scoped export failed")
+        self.assertEqual(shell.stdout, "IO570_SYNTHETIC_VALUE")
 
     def test_filtered_original_uses_only_scoped_alias_for_authorization(self) -> None:
         from issue_orchestrator.entrypoints.cli_tools.agent_callback import (

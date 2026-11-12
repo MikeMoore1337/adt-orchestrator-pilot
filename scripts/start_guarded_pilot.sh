@@ -43,6 +43,9 @@ EXPECTED_FILES="$(printf '%s\n' \
   fail "Patched original engine contains unknown or missing source modifications"
 git -C "$PATCHED_ENGINE" diff --check ||
   fail "Original engine patch has whitespace errors"
+git -C "$PATCHED_ENGINE" apply --reverse --check \
+  "$ROOT/upstream/issue-orchestrator-0.10.0-io570-validation-timings.patch" ||
+  fail "Private validation timing journal patch is absent or drifted"
 export PYTHONPATH="$PATCHED_ENGINE/src"
 echo "ORIGINAL_ENGINE_NAMESPACED_SOURCE=PASS"
 export ISSUE_ORCHESTRATOR_CODEX_RUNTIME_ROOT="$HOME/.local/state/adt-io570/codex-runtime"

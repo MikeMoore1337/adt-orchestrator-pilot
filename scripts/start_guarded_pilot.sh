@@ -118,6 +118,9 @@ fi
 if [[ "$GH7" == *"io:auto-retried-interrupted-coding"* ]]; then
   fail "Issue #7 has an interrupted-session retry marker; inspect the previous run before retrying"
 fi
+if [[ "$GH7" == *"needs-human"* ]]; then
+  fail "Issue #7 is needs-human; preserve the backed-up commit and resolve the human gate before restarting"
+fi
 GH8_BODY="$(gh issue view 8 --repo MikeMoore1337/adt-orchestrator-pilot \
   --json body --jq '.body')" ||
   fail "Cannot inspect Issue #8 dependency"

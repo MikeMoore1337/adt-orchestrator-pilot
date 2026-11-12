@@ -72,7 +72,7 @@ class ScopedCallbackHandoffTests(unittest.TestCase):
         shell = subprocess.run(
             [
                 "bash", "-c",
-                export + "; printf '%s' \"$" + "{" + ALIAS + "}\"",
+                export + '; printf "%s" "$ISSUE_ORCHESTRATOR_AGENT_CALLBACK_BEARER"',
             ],
             env={"PATH": os.environ.get("PATH", "/usr/bin"),
                  ORIGINAL: "IO570_SYNTHETIC_VALUE"},

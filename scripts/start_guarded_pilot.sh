@@ -153,6 +153,8 @@ issue-orchestrator doctor --config "$CONFIG" ||
 export ISSUE_ORCHESTRATOR_IO570_LOOPBACK_PROXY=1
 "$ISSUE_ORCHESTRATOR_PYTHON" "$ROOT/scripts/probe_io570_loopback_proxy.py" ||
   fail "Managed loopback proxy did not pass the no-model security gate"
+"$ISSUE_ORCHESTRATOR_PYTHON" "$ROOT/scripts/probe_io570_completion_transport.py" ||
+  fail "Codex callback transport did not pass the no-model authenticated canary"
 
 echo "ORIGINAL_ENGINE_START=ORIGINAL_ENGINE_ONLY"
 echo "Continuous WIP=1 queue: wait for PR/merge/CI, no per-Issue relaunch."

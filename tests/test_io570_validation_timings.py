@@ -115,6 +115,14 @@ class IO570WorktreePrivateTimingJournal(unittest.TestCase):
         self.assertNotIn("danger-full-access", source_patch)
         self.assertNotIn("git push --no-verify", probe)
         self.assertNotIn("codex exec", probe.lower().replace("does not run codex exec", ""))
+        control = (root / "scripts/probe_io570_live_control_api.py").read_text()
+        compile(control, "probe_io570_live_control_api.py", "exec")
+        self.assertIn("CONTROL_API_INVALID_CAPABILITY_DENY=PASS", control)
+        self.assertIn("io570-invalid-", control)
+        self.assertIn("read_existing_agent_callback_token", control)
+        self.assertIn("urllib.request.ProxyHandler({})", control)
+        self.assertNotIn("codex exec", control.lower())
+        self.assertNotIn("load_or_create_token", control)
 
 
 if __name__ == "__main__":

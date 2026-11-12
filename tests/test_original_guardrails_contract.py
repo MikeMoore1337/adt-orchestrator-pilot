@@ -199,6 +199,17 @@ class OriginalGuardrailContracts(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertIn('"$GH7" == *"io:auto-retried-interrupted-coding"*', wrapper)
+        self.assertIn('if [[ "$GH7" == *"needs-human"* ]]; then', wrapper)
+        self.assertIn("preserve the backed-up commit", wrapper)
+
+    def test_agent_instructions_are_scoped_to_authorized_guarded_pilot(self) -> None:
+        text = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
+        self.assertIn("SCOPED LIVE PILOT", text)
+        self.assertIn("scripts/start_guarded_pilot.sh", text)
+        self.assertIn("original engine", text)
+        self.assertIn("origin/main", text)
+        self.assertNotIn("ENGINE NOT ACTIVATED", text)
+        self.assertNotIn("SOURCE-ONLY PREPARATION", text)
 
 
 if __name__ == "__main__":

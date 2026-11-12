@@ -16,6 +16,7 @@ import base64
 import json
 import os
 import subprocess
+import sys
 import tempfile
 
 from issue_orchestrator.domain.models import AgentConfig
@@ -187,7 +188,7 @@ except Exception as exc:
                     cmd = [
                         str(CODEX), "sandbox", "--permission-profile",
                         "issue_orchestrator_scope", "-C", str(linked),
-                        *argv[5:], "--", "/usr/bin/python3",
+                        *argv[5:], "--", str(Path(sys.executable).absolute()),
                         "-c", client, mode, str(candidate),
                     ]
                     result = subprocess.run(

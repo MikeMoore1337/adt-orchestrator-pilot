@@ -15,6 +15,7 @@ class NamespacedProbeContracts(unittest.TestCase):
         compile(code, str(path), "exec")
         self.assertIn("ORIGINAL_CODEX_UNMODIFIED=YES", code)
         self.assertIn("NAMESPACED_REF_WRITE=PASS", code)
+        self.assertIn("VALIDATION_TIMINGS_WRITE=PASS", code)
         self.assertIn("EXACT_GIT_FILE_WRITE_RULES=0", code)
         self.assertIn("MAIN_REF_DENY=", code)
         self.assertIn("GH_CANARY_DENY=", code)

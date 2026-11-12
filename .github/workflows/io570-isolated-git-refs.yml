@@ -7,6 +7,8 @@ on:
       - 'scripts/apply_orchestrator_git_ref_fix.py'
       - 'scripts/prepare_namespaced_original_engine.sh'
       - 'scripts/probe_io570_loopback_proxy.py'
+      - 'scripts/probe_namespaced_codex_sandbox.py'
+      - 'tests/test_io570_validation_timings.py'
       - 'tests/test_isolated_ref_git_policy.py'
       - '.github/workflows/io570-isolated-git-refs.yml'
 
@@ -40,8 +42,13 @@ jobs:
           patch_file="$GITHUB_WORKSPACE/upstream/issue-orchestrator-0.10.0-io570-loopback-proxy.patch"
           git -C "$root" apply --check "$patch_file"
           git -C "$root" apply "$patch_file"
+          timings="src/issue_orchestrator/infra/validation_timings.py"
+          test "$(git -C "$root" hash-object "$timings")" = "45c63ee3269ea343f297f07a62b0fb25164448d8"
+          timing_patch="$GITHUB_WORKSPACE/upstream/issue-orchestrator-0.10.0-io570-validation-timings.patch"
+          git -C "$root" apply --check "$timing_patch"
+          git -C "$root" apply "$timing_patch"
           git -C "$root" diff --check
-          expected="$(printf 'src/issue_orchestrator/adapters/worktree/_worktree.py\nsrc/issue_orchestrator/domain/branch_naming.py\nsrc/issue_orchestrator/execution/agent_runner_providers/git_worktree_access.py\nsrc/issue_orchestrator/execution/agent_runner_providers/sandbox.py')"
+          expected="$(printf 'src/issue_orchestrator/adapters/worktree/_worktree.py\nsrc/issue_orchestrator/domain/branch_naming.py\nsrc/issue_orchestrator/execution/agent_runner_providers/git_worktree_access.py\nsrc/issue_orchestrator/execution/agent_runner_providers/sandbox.py\nsrc/issue_orchestrator/infra/validation_timings.py')"
           test "$(git -C "$root" diff --name-only)" = "$expected"
           echo "PINNED_ORIGINAL_ENGINE_PATCH=PASS"
       - name: Offline Git add and commit with shared refs read-only
@@ -58,4 +65,6 @@ jobs:
             -s tests -p test_isolated_ref_git_policy.py -v
           "${RUNNER_TEMP}/io570-venv/bin/python" -m unittest discover \
             -s tests -p test_io570_loopback_policy.py -v
+          "${RUNNER_TEMP}/io570-venv/bin/python" -m unittest discover \
+            -s tests -p test_io570_validation_timings.py -v
           echo "ORIGINAL_ENGINE_NAMESPACED_GIT_DAC=PASS"

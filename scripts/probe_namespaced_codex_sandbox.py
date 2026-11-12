@@ -15,6 +15,7 @@ import secrets
 import shlex
 import shutil
 import subprocess
+import sys
 import tempfile
 
 from issue_orchestrator.domain.models import AgentConfig
@@ -61,7 +62,7 @@ def require_environment() -> Path:
     if os.environ.get("ISSUE_ORCHESTRATOR_ISOLATED_GIT_REF_DIRS") != "1":
         raise RuntimeError("Original engine isolated-ref opt-in is mandatory")
     import issue_orchestrator.execution.agent_runner_providers.git_worktree_access as git_policy
-    patched_src = home / ".local/state/adt-io570/original-engine-namespaced-loopback/src"
+    patched_src = home / ".local/state/adt-io570/original-engine-namespaced-timings/src"
     if not Path(git_policy.__file__).resolve().is_relative_to(patched_src):
         raise RuntimeError("Patched original engine source not loaded from isolated checkout")
     print("ORIGINAL_ENGINE_ISOLATED_REF_SOURCE=PASS")
@@ -153,9 +154,27 @@ def probe(runtime: Path) -> bool:
             print("NAMESPACED_REF_WRITE=PASS")
 
             positive = linked / "positive.txt"
+            from issue_orchestrator.infra.validation_timings import resolve_git_dir
+            git_admin = resolve_git_dir(linked)
+            if git_admin is None or not git_admin.is_dir():
+                raise RuntimeError("Synthetic linked Git admin directory missing")
+            expected_timings = git_admin / "issue-orchestrator/validate-timings.jsonl"
+            shared_timings = base / ".git/issue-orchestrator/validate-timings.jsonl"
+            timing_script = (
+                "from pathlib import Path; "
+                "from issue_orchestrator.infra.validation_timings import "
+                "get_shared_timings_file, resolve_git_dir; "
+                "from issue_orchestrator.infra.jsonl_storage import append_jsonl; "
+                "root=Path.cwd(); path=get_shared_timings_file(root); "
+                "assert path is not None and "
+                "path.parent.parent == resolve_git_dir(root).resolve(); "
+                "append_jsonl(path, {'kind':'io570_native_synthetic'}); "
+                "print('VALIDATION_TIMINGS_WRITE=PASS')"
+            )
             quote = shlex.quote
             shell = "; ".join((
                 "echo SHELL_BOOT=PASS",
+                f"{quote(str(Path(sys.executable).resolve()))} -c {quote(timing_script)}",
                 f"printf 'OK' > {quote(str(positive))}",
                 f"git -C {quote(str(linked))} add -- positive.txt && "
                 f"git -C {quote(str(linked))} -c user.name=IO570-Probe "
@@ -186,6 +205,9 @@ def probe(runtime: Path) -> bool:
                 result.returncode == 0
                 and "SHELL_BOOT=PASS" in output
                 and "GIT_COMMIT=PASS" in output
+                and "VALIDATION_TIMINGS_WRITE=PASS" in output
+                and expected_timings.is_file()
+                and not shared_timings.exists()
                 and "MAIN_REF=DENIED" in output
                 and "MAIN_REF=WRITABLE" not in output
                 and (linked / "positive.txt").is_file()
@@ -198,6 +220,10 @@ def probe(runtime: Path) -> bool:
             print("SANDBOX_EXIT=" + str(result.returncode))
             print("SHELL_BOOT=" + ("PASS" if "SHELL_BOOT=PASS" in output else "FAIL"))
             print("GIT_COMMIT=" + ("PASS" if "GIT_COMMIT=PASS" in output else "FAIL"))
+            print("VALIDATION_TIMINGS_WRITE=" +
+                  ("PASS" if "VALIDATION_TIMINGS_WRITE=PASS" in output and
+                   expected_timings.is_file() and not shared_timings.exists()
+                   else "FAIL"))
             print("MAIN_REF_DENY=" + ("PASS" if "MAIN_REF=DENIED" in output
                   and "MAIN_REF=WRITABLE" not in output else "FAIL"))
             print(

@@ -6,7 +6,7 @@ set -euo pipefail
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source_dir="$HOME/projects/issue-orchestrator"
 root="$HOME/.local/state/adt-io570"
-target="$root/original-engine-namespaced-loopback"
+target="$root/original-engine-namespaced-timings"
 pin="d4a79824ccd806089cf3f70ec632d39b8ee255ea"
 
 [[ "$(git -C "$source_dir" rev-parse HEAD)" == "$pin" ]] ||
@@ -25,6 +25,11 @@ if [[ ! -e "$target" ]]; then
     { echo "CODEX_SANDBOX_SOURCE_PIN=FAIL" >&2; exit 1; }
   git -C "$target" apply --check "$repo/upstream/issue-orchestrator-0.10.0-io570-loopback-proxy.patch"
   git -C "$target" apply "$repo/upstream/issue-orchestrator-0.10.0-io570-loopback-proxy.patch"
+  timings="src/issue_orchestrator/infra/validation_timings.py"
+  [[ "$(git -C "$target" hash-object "$timings")" == "45c63ee3269ea343f297f07a62b0fb25164448d8" ]] ||
+    { echo "VALIDATION_TIMINGS_SOURCE_PIN=FAIL" >&2; exit 1; }
+  git -C "$target" apply --check "$repo/upstream/issue-orchestrator-0.10.0-io570-validation-timings.patch"
+  git -C "$target" apply "$repo/upstream/issue-orchestrator-0.10.0-io570-validation-timings.patch"
 fi
 
 [[ "$(git -C "$target" rev-parse HEAD)" == "$pin" ]] ||
@@ -33,7 +38,8 @@ expected="$(printf '%s\n' \
   'src/issue_orchestrator/adapters/worktree/_worktree.py' \
   'src/issue_orchestrator/domain/branch_naming.py' \
   'src/issue_orchestrator/execution/agent_runner_providers/git_worktree_access.py' \
-  'src/issue_orchestrator/execution/agent_runner_providers/sandbox.py')"
+  'src/issue_orchestrator/execution/agent_runner_providers/sandbox.py' \
+  'src/issue_orchestrator/infra/validation_timings.py')"
 actual="$(git -C "$target" diff --name-only)"
 [[ "$actual" == "$expected" ]] ||
   { echo "PATCHED_ENGINE_FILES=UNEXPECTED" >&2; exit 1; }

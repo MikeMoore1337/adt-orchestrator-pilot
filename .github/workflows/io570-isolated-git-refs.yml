@@ -8,6 +8,8 @@ on:
       - 'scripts/prepare_namespaced_original_engine.sh'
       - 'scripts/probe_io570_loopback_proxy.py'
       - 'scripts/probe_namespaced_codex_sandbox.py'
+      - 'scripts/probe_io570_completion_transport.py'
+      - 'tests/test_io570_completion_auth.py'
       - 'tests/test_io570_validation_timings.py'
       - 'tests/test_isolated_ref_git_policy.py'
       - '.github/workflows/io570-isolated-git-refs.yml'
@@ -47,8 +49,15 @@ jobs:
           timing_patch="$GITHUB_WORKSPACE/upstream/issue-orchestrator-0.10.0-io570-validation-timings.patch"
           git -C "$root" apply --check "$timing_patch"
           git -C "$root" apply "$timing_patch"
+          session_env="src/issue_orchestrator/control/session_env.py"
+          callback="src/issue_orchestrator/entrypoints/cli_tools/agent_callback.py"
+          test "$(git -C "$root" hash-object "$session_env")" = "041d27bc3947a66095a03b9aa7e6dbc3d0787538"
+          test "$(git -C "$root" hash-object "$callback")" = "36948fc6865db372da8712a1c421dd350e92ddcf"
+          cb_patch="$GITHUB_WORKSPACE/upstream/issue-orchestrator-0.10.0-io570-callback-env.patch"
+          git -C "$root" apply --check "$cb_patch"
+          git -C "$root" apply "$cb_patch"
           git -C "$root" diff --check
-          expected="$(printf 'src/issue_orchestrator/adapters/worktree/_worktree.py\nsrc/issue_orchestrator/domain/branch_naming.py\nsrc/issue_orchestrator/execution/agent_runner_providers/git_worktree_access.py\nsrc/issue_orchestrator/execution/agent_runner_providers/sandbox.py\nsrc/issue_orchestrator/infra/validation_timings.py')"
+          expected="$(printf 'src/issue_orchestrator/adapters/worktree/_worktree.py\nsrc/issue_orchestrator/control/session_env.py\nsrc/issue_orchestrator/domain/branch_naming.py\nsrc/issue_orchestrator/entrypoints/cli_tools/agent_callback.py\nsrc/issue_orchestrator/execution/agent_runner_providers/git_worktree_access.py\nsrc/issue_orchestrator/execution/agent_runner_providers/sandbox.py\nsrc/issue_orchestrator/infra/validation_timings.py')"
           test "$(git -C "$root" diff --name-only)" = "$expected"
           echo "PINNED_ORIGINAL_ENGINE_PATCH=PASS"
       - name: Offline Git add and commit with shared refs read-only
@@ -67,4 +76,6 @@ jobs:
             -s tests -p test_io570_loopback_policy.py -v
           "${RUNNER_TEMP}/io570-venv/bin/python" -m unittest discover \
             -s tests -p test_io570_validation_timings.py -v
+          "${RUNNER_TEMP}/io570-venv/bin/python" -m unittest discover \
+            -s tests -p test_io570_completion_auth.py -v
           echo "ORIGINAL_ENGINE_NAMESPACED_GIT_DAC=PASS"

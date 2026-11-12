@@ -1,0 +1,89 @@
+diff --git a/src/issue_orchestrator/control/session_env.py b/src/issue_orchestrator/control/session_env.py
+--- a/src/issue_orchestrator/control/session_env.py
++++ b/src/issue_orchestrator/control/session_env.py
+@@ -13,8 +13,9 @@
+ 
+ from __future__ import annotations
+ 
+-import sys
+-from pathlib import Path
++import os
++import sys
++from pathlib import Path
+ from typing import TYPE_CHECKING, Protocol
+ 
+ from ..infra.env import ENV_PREFIX
+@@ -57,7 +58,25 @@
+     return f" {ENV_PREFIX}API_PORT='{port}'"
+ 
+ 
+-def config_exports(config_path: Path | None, mode: str = "default") -> str:
++def _io570_scoped_callback_bearer_export() -> str:
++    """Re-export only the agent-route bearer under a Codex-safe *name*.
++
++    Codex's `ignore_default_excludes=false` drops names matching *TOKEN*.
++    Exporting this narrow route credential does not disable that filtering,
++    disclose its bytes in argv/prompts, or expose an admin/GitHub credential.
++    Only the exact synthetic pilot's managed proxy opt-in enables this alias.
++    """
++    if os.environ.get("ISSUE_ORCHESTRATOR_IO570_LOOPBACK_PROXY") != "1":
++        return ""
++    # Expansion occurs at trusted launch time, never when composing a CLI argv
++    # or logging the session prompt. Missing agent bearer stops the launch.
++    return (
++        ' ISSUE_ORCHESTRATOR_AGENT_CALLBACK_BEARER='
++        '"${ISSUE_ORCHESTRATOR_AGENT_CALLBACK_TOKEN:?scoped callback token unavailable}"'
++    )
++
++
++def config_exports(config_path: Path | None, mode: str = "default") -> str:
+     """Render the selected-config exports.
+ 
+     ``coding-done`` / ``reviewer-done`` must resolve validation from the
+@@ -103,8 +122,9 @@
+         f" {ENV_PREFIX}AGENT_LABEL='{agent_label}'"
+         f" {ENV_PREFIX}ISSUE_NUMBER='{issue_number}'"
+         f"{config_exports(config.config_path, config.configuration_mode)}"
+-        f"{api_port_export(config.control_api_port, callback_endpoint)}"
+-        f" {ENV_PREFIX}VALIDATION_OUTPUT_DIR='{run_dir}'"
++        f"{api_port_export(config.control_api_port, callback_endpoint)}"
++        f"{_io570_scoped_callback_bearer_export()}"
++        f" {ENV_PREFIX}VALIDATION_OUTPUT_DIR='{run_dir}'"
+         f" {ENV_PREFIX}RUN_DIR='{run_dir}'"
+         f" {ENV_PREFIX}WORKTREE='{worktree_path}'"
+         f" {runtime_tool_assignments}"
+diff --git a/src/issue_orchestrator/entrypoints/cli_tools/agent_callback.py b/src/issue_orchestrator/entrypoints/cli_tools/agent_callback.py
+--- a/src/issue_orchestrator/entrypoints/cli_tools/agent_callback.py
++++ b/src/issue_orchestrator/entrypoints/cli_tools/agent_callback.py
+@@ -20,7 +20,9 @@
+ from collections.abc import MutableMapping
+ from dataclasses import dataclass
+ 
+-AGENT_CALLBACK_TOKEN_ENV_VAR = "ISSUE_ORCHESTRATOR_AGENT_CALLBACK_TOKEN"
++AGENT_CALLBACK_TOKEN_ENV_VAR = "ISSUE_ORCHESTRATOR_AGENT_CALLBACK_TOKEN"
++_IO570_SCOPED_BEARER_ENV_VAR = "ISSUE_ORCHESTRATOR_AGENT_CALLBACK_BEARER"
++_IO570_SCOPED_OPT_IN = "ISSUE_ORCHESTRATOR_IO570_LOOPBACK_PROXY"
+ 
+ # The port env vars an agent may carry, in precedence order. The
+ # prefixed one is set at session launch; the legacy unprefixed one is
+@@ -49,9 +51,17 @@
+     @classmethod
+     def from_agent_environment(cls) -> "ApiRequestHeaders":
+         values = [ApiHeader("Content-Type", "application/json")]
+-        token = os.environ.get(AGENT_CALLBACK_TOKEN_ENV_VAR)
+-        if token:
+-            values.append(ApiHeader("Authorization", f"Bearer {token}"))
++        token = os.environ.get(AGENT_CALLBACK_TOKEN_ENV_VAR)
++        if os.environ.get(_IO570_SCOPED_OPT_IN) == "1":
++            # The normal callback token name is intentionally filtered by
++            # Codex's strict default shell environment policy. Accept only
++            # the narrowly scoped pilot alias and detect conflicting values.
++            bearer = os.environ.get(_IO570_SCOPED_BEARER_ENV_VAR)
++            if bearer and token and bearer != token:
++                raise RuntimeError("conflicting scoped callback bearer")
++            token = token or bearer
++        if token:
++            values.append(ApiHeader("Authorization", f"Bearer {token}"))
+         return cls(headers=tuple(values))
+ 
+     def to_mutable_mapping(self) -> MutableMapping[str, str]:

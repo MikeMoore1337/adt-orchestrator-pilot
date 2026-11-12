@@ -1,0 +1,56 @@
+diff --git a/src/issue_orchestrator/infra/validation_timings.py b/src/issue_orchestrator/infra/validation_timings.py
+--- a/src/issue_orchestrator/infra/validation_timings.py
++++ b/src/issue_orchestrator/infra/validation_timings.py
+@@ -1,9 +1,10 @@
+ """Shared validation timing artifact helpers."""
+ 
+-from __future__ import annotations
+-
+-import re
+-import time
++from __future__ import annotations
++
++import os
++import re
++import time
+ from dataclasses import dataclass, field
+ from datetime import datetime, timezone
+ from pathlib import Path
+@@ -126,12 +127,31 @@
+     return None
+ 
+ 
+-def get_shared_timings_file(worktree: Path) -> Path | None:
+-    """Return the shared JSONL timing file path for this repository."""
+-    common_dir = resolve_git_common_dir(worktree)
+-    if common_dir is None:
+-        return None
+-    return common_dir / "issue-orchestrator" / "validate-timings.jsonl"
++def get_shared_timings_file(worktree: Path) -> Path | None:
++    """Resolve validation timing storage without broadening Git sandbox writes.
++
++    Normal upstream operation preserves the shared Git-dir timing ledger.
++    The synthetic #570 isolated-ref opt-in uses an issue's *private* linked
++    worktree admin directory, already writable in its Codex permission profile.
++    No validation decision, cache result or exit code is bypassed. The timing
++    journal remains required and errors stay fail-closed.
++    """
++    common_dir = resolve_git_common_dir(worktree)
++    if common_dir is None:
++        return None
++    if os.environ.get("ISSUE_ORCHESTRATOR_ISOLATED_GIT_REF_DIRS") == "1":
++        git_dir = resolve_git_dir(worktree)
++        if git_dir is None:
++            raise RuntimeError("IO570 isolated validation timings require a Git directory")
++        if git_dir != common_dir:
++            # Never redirect outside the verified Git linked-worktree admin
++            # namespace. Do not grant write to the shared .git directory.
++            private = git_dir.resolve()
++            worktrees_root = (common_dir / "worktrees").resolve()
++            if private.parent != worktrees_root:
++                raise RuntimeError("IO570 isolated validation timings need a private Git worktree")
++            return private / "issue-orchestrator" / "validate-timings.jsonl"
++    return common_dir / "issue-orchestrator" / "validate-timings.jsonl"
+ 
+ 
+ def build_timing_envelope(

@@ -22,6 +22,7 @@ agents:
     # Small synthetic pilot: fail promptly if a coding session stalls.
     timeout_minutes: 15
     provider_args:
+      execution_mode: exec
       approval_mode: default
       sandbox: workspace-write
   "agent:reviewer":
@@ -55,6 +56,12 @@ validation:
     cmd: "python -m unittest discover -s tests -v"
     timeout_seconds: 900
     dirty_check: tracked
+
+# This disposable pilot must not spend another model turn after a missing
+# completion record without an operator examining the first attempt.
+retry:
+  interrupted_sessions:
+    enabled: false
 
 filtering:
   label: "adt-io570-pilot-20261109"

@@ -173,6 +173,44 @@ class OriginalGuardrailContracts(unittest.TestCase):
         self.assertIn("  enabled: false", config)
         self.assertIn("adt-io570-pilot-20261109", config)
 
+    def test_launch_config_gate_is_real_python_and_fail_closed(self) -> None:
+        wrapper = (ROOT / "scripts/start_guarded_pilot.sh").read_text(
+            encoding="utf-8"
+        )
+        marker = 'if ! "$ISSUE_ORCHESTRATOR_PYTHON" - "$CONFIG" <<\'PY\'\n'
+        self.assertEqual(wrapper.count(marker), 1)
+        terminator = '\nPY\nthen\n  fail "Original queue configuration failed validation"\nfi\n'
+        self.assertEqual(wrapper.count(terminator), 1)
+        python_source = wrapper.split(marker, 1)[1].split(terminator, 1)[0]
+        compile(python_source, "pilot-launch-config.py", "exec")
+        self.assertIn('"repository": config.repo == "MikeMoore1337/adt-orchestrator-pilot"', python_source)
+        self.assertIn('"codex_one_shot": config.agents["agent:dev"].provider_args.get("execution_mode") == "exec"', python_source)
+        self.assertIn("config.retry.interrupted_sessions.enabled is False", python_source)
+        self.assertIn('raise SystemExit("SEQUENTIAL_QUEUE_CONFIG=FAIL:', python_source)
+        self.assertNotIn("\nassert ", python_source)
+
+    def test_pilot_uses_bounded_one_shot_coding_and_no_auto_retry(self) -> None:
+        config = (
+            ROOT / ".issue-orchestrator/config/modes/upstream-pilot/main.yaml"
+        ).read_text(encoding="utf-8")
+        self.assertEqual(config.count("      execution_mode: exec"), 1)
+        self.assertIn("  interrupted_sessions:\n    enabled: false", config)
+        wrapper = (ROOT / "scripts/start_guarded_pilot.sh").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('"$GH7" == *"io:auto-retried-interrupted-coding"*', wrapper)
+        self.assertIn('if [[ "$GH7" == *"needs-human"* ]]; then', wrapper)
+        self.assertIn("preserve the backed-up commit", wrapper)
+
+    def test_agent_instructions_are_scoped_to_authorized_guarded_pilot(self) -> None:
+        text = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
+        self.assertIn("SCOPED LIVE PILOT", text)
+        self.assertIn("scripts/start_guarded_pilot.sh", text)
+        self.assertIn("original engine", text)
+        self.assertIn("origin/main", text)
+        self.assertNotIn("ENGINE NOT ACTIVATED", text)
+        self.assertNotIn("SOURCE-ONLY PREPARATION", text)
+
 
 if __name__ == "__main__":
     unittest.main()

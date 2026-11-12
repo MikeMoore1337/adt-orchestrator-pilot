@@ -61,7 +61,7 @@ def require_environment() -> Path:
     if os.environ.get("ISSUE_ORCHESTRATOR_ISOLATED_GIT_REF_DIRS") != "1":
         raise RuntimeError("Original engine isolated-ref opt-in is mandatory")
     import issue_orchestrator.execution.agent_runner_providers.git_worktree_access as git_policy
-    patched_src = home / ".local/state/adt-io570/original-engine-namespaced/src"
+    patched_src = home / ".local/state/adt-io570/original-engine-namespaced-loopback/src"
     if not Path(git_policy.__file__).resolve().is_relative_to(patched_src):
         raise RuntimeError("Patched original engine source not loaded from isolated checkout")
     print("ORIGINAL_ENGINE_ISOLATED_REF_SOURCE=PASS")

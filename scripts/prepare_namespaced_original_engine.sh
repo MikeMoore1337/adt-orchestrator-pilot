@@ -6,7 +6,7 @@ set -euo pipefail
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source_dir="$HOME/projects/issue-orchestrator"
 root="$HOME/.local/state/adt-io570"
-target="$root/original-engine-namespaced"
+target="$root/original-engine-namespaced-loopback"
 pin="d4a79824ccd806089cf3f70ec632d39b8ee255ea"
 
 [[ "$(git -C "$source_dir" rev-parse HEAD)" == "$pin" ]] ||
@@ -20,6 +20,11 @@ chmod 700 "$root"
 if [[ ! -e "$target" ]]; then
   git -C "$source_dir" worktree add --detach "$target" "$pin"
   "$source_dir/.venv/bin/python" "$repo/scripts/apply_orchestrator_git_ref_fix.py" "$target" --apply
+  sandbox="src/issue_orchestrator/execution/agent_runner_providers/sandbox.py"
+  [[ "$(git -C "$target" hash-object "$sandbox")" == "fca26cf3e6e88b984e2758005f3ce9e5019838ab" ]] ||
+    { echo "CODEX_SANDBOX_SOURCE_PIN=FAIL" >&2; exit 1; }
+  git -C "$target" apply --check "$repo/upstream/issue-orchestrator-0.10.0-io570-loopback-proxy.patch"
+  git -C "$target" apply "$repo/upstream/issue-orchestrator-0.10.0-io570-loopback-proxy.patch"
 fi
 
 [[ "$(git -C "$target" rev-parse HEAD)" == "$pin" ]] ||
@@ -27,7 +32,8 @@ fi
 expected="$(printf '%s\n' \
   'src/issue_orchestrator/adapters/worktree/_worktree.py' \
   'src/issue_orchestrator/domain/branch_naming.py' \
-  'src/issue_orchestrator/execution/agent_runner_providers/git_worktree_access.py')"
+  'src/issue_orchestrator/execution/agent_runner_providers/git_worktree_access.py' \
+  'src/issue_orchestrator/execution/agent_runner_providers/sandbox.py')"
 actual="$(git -C "$target" diff --name-only)"
 [[ "$actual" == "$expected" ]] ||
   { echo "PATCHED_ENGINE_FILES=UNEXPECTED" >&2; exit 1; }

@@ -272,6 +272,73 @@ def probe(runtime: Path) -> bool:
             )
             if result.stderr.strip():
                 print("SANDBOX_DIAGNOSTIC=" + result.stderr.strip()[-1800:])
+
+            # Original review-exchange creates a detached sibling worktree.
+            # A reviewer may commit in its PRIVATE admin, never in main refs.
+            reviewer = root / "reviewer"
+            command("git", "worktree", "add", "-q", "--detach",
+                    str(reviewer), "HEAD", cwd=base)
+            reviewer_scope = compute_session_scope(
+                AgentConfig(
+                    prompt_path=Path(".prompts/reviewer.md"),
+                    prompt_relative=".prompts/reviewer.md",
+                    provider="codex", sandbox=True,
+                ),
+                SandboxScopeContext(
+                    task_kind="review_exchange_reviewer", worktree=reviewer
+                ),
+            )
+            if reviewer_scope is None:
+                raise RuntimeError("Detached reviewer sandbox missing")
+            reviewer_args = CodexProvider().apply_scope(reviewer_scope)
+            detached_rules = git_worktree_filesystem_rules(
+                resolve_git_worktree_access(reviewer)
+            )
+            if any(
+                perm == "write" and path.startswith(
+                    str(base / ".git/refs/heads")
+                )
+                for path, perm in detached_rules
+            ):
+                raise RuntimeError("Detached reviewer gained shared branch write")
+            reviewer_script = "; ".join((
+                f"printf REVIEW > {quote(str(reviewer / 'review-note.txt'))}",
+                f"git -C {quote(str(reviewer))} add -- review-note.txt && "
+                f"git -C {quote(str(reviewer))} "
+                "-c user.name=IO570-Reviewer "
+                "-c user.email=reviewer@example.invalid commit -qm "
+                "detached-review-probe && echo DETACHED_COMMIT=PASS",
+                f"if git -C {quote(str(reviewer))} update-ref refs/heads/main "
+                f"$(git -C {quote(str(reviewer))} rev-parse HEAD) >/dev/null 2>&1; "
+                "then echo REVIEWER_MAIN=WRITABLE; "
+                "else echo REVIEWER_MAIN=DENIED; fi",
+            ))
+            reviewer_run = subprocess.run(
+                [
+                    str((home / ".local/share/adt-io570/codex-0.167.0/bin/codex").resolve()),
+                    "sandbox", "--permission-profile", "issue_orchestrator_scope",
+                    "-C", str(reviewer), *reviewer_args[5:],
+                    "--", "/bin/sh", "-c", reviewer_script,
+                ],
+                cwd=reviewer, env=env, capture_output=True, text=True,
+                timeout=30, check=False,
+            )
+            reviewer_ok = (
+                reviewer_run.returncode == 0
+                and "DETACHED_COMMIT=PASS" in reviewer_run.stdout
+                and "REVIEWER_MAIN=DENIED" in reviewer_run.stdout
+                and "REVIEWER_MAIN=WRITABLE" not in reviewer_run.stdout
+                and (reviewer / "review-note.txt").is_file()
+                and command("git", "rev-parse", "--abbrev-ref", "HEAD",
+                            cwd=reviewer) == "HEAD"
+            )
+            print("DETACHED_REVIEWER_NATIVE=" + (
+                "PASS" if reviewer_ok else "FAIL"
+            ))
+            if not reviewer_ok and reviewer_run.stderr.strip():
+                print("REVIEWER_ERROR_TYPE=SANDBOX_NONZERO")
+            passed = passed and reviewer_ok
+
             print("LINKED_SANDBOX_GATE=" + ("PASS" if passed else "FAIL"))
             return passed
     finally:

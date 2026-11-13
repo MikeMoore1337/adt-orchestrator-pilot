@@ -6,7 +6,7 @@ set -euo pipefail
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source_dir="$HOME/projects/issue-orchestrator"
 root="$HOME/.local/state/adt-io570"
-target="$root/original-engine-namespaced-callback"
+target="$root/original-engine-namespaced-metadata"
 pin="d4a79824ccd806089cf3f70ec632d39b8ee255ea"
 
 [[ "$(git -C "$source_dir" rev-parse HEAD)" == "$pin" ]] ||
@@ -38,6 +38,9 @@ if [[ ! -e "$target" ]]; then
     { echo "AGENT_CALLBACK_SOURCE_PIN=FAIL" >&2; exit 1; }
   git -C "$target" apply --check "$repo/upstream/issue-orchestrator-0.10.0-io570-callback-env.patch"
   git -C "$target" apply "$repo/upstream/issue-orchestrator-0.10.0-io570-callback-env.patch"
+  metadata_patch="$repo/upstream/issue-orchestrator-0.10.0-io570-codex-metadata-detached.patch"
+  git -C "$target" apply --check "$metadata_patch"
+  git -C "$target" apply "$metadata_patch"
 fi
 
 [[ "$(git -C "$target" rev-parse HEAD)" == "$pin" ]] ||

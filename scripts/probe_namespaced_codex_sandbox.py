@@ -110,6 +110,15 @@ def probe(runtime: Path) -> bool:
             if not (linked / ".git").is_file():
                 raise RuntimeError("Fixture must be a LINKED git worktree")
 
+            # Reproduce the actual WSL2 Git metadata layout left behind by
+            # interrupted Codex 0.167.0 native sandbox sessions.
+            namespace = base / ".git/refs/heads/7-io570-probe"
+            reflogs = base / ".git/logs/refs/heads/7-io570-probe"
+            metadata_names = (".git", ".agents", ".codex", ".aws")
+            for root_dir in (namespace, reflogs):
+                for name in metadata_names:
+                    (root_dir / name).mkdir()
+
             scope = compute_session_scope(
                 AgentConfig(
                     prompt_path=Path(".prompts/dev.md"),
@@ -149,6 +158,14 @@ def probe(runtime: Path) -> bool:
                 raise RuntimeError("Non-isolated or exact-file Git writable roots detected")
             if str(base / ".git/refs/heads") in write_paths:
                 raise RuntimeError("Shared branch refs are writable: fail closed")
+            rules = dict(grants)
+            if any(
+                rules.get(str(directory / name)) != "read"
+                for directory in (namespace, reflogs)
+                for name in metadata_names
+            ):
+                raise RuntimeError("Codex metadata directories not explicitly read-only")
+            print("CODEX_METADATA_MASK_RULES=PASS")
             print("LINKED_WORKTREE=PASS")
             print("EXACT_GIT_FILE_WRITE_RULES=0")
             print("NAMESPACED_REF_WRITE=PASS")
@@ -187,6 +204,12 @@ def probe(runtime: Path) -> bool:
                 "then echo GH_CANARY=READABLE; else echo GH_CANARY=DENIED; fi",
                 f"if printf BAD > {quote(str(outside))} 2>/dev/null; "
                 "then echo OUTSIDE_WRITE=ALLOWED; else echo OUTSIDE_WRITE=DENIED; fi",
+                *(
+                    f"if printf BAD > {quote(str(root_dir / name / 'forbidden.txt'))} 2>/dev/null; "
+                    "then echo METADATA_WRITE=ALLOWED; else echo METADATA_WRITE=DENIED; fi"
+                    for root_dir in (namespace, reflogs)
+                    for name in metadata_names
+                ),
             ))
             env = os.environ.copy()
             env["CODEX_HOME"] = str(runtime)
@@ -216,7 +239,18 @@ def probe(runtime: Path) -> bool:
                 and "GH_CANARY=READABLE" not in output
                 and "OUTSIDE_WRITE=DENIED" in output
                 and not outside.exists()
+                and output.count("METADATA_WRITE=DENIED") == 8
+                and "METADATA_WRITE=ALLOWED" not in output
+                and not any(
+                    (root_dir / name / "forbidden.txt").exists()
+                    for root_dir in (namespace, reflogs)
+                    for name in metadata_names
+                )
             )
+            print("CODEX_METADATA_MASK_WRITE_DENY=" + (
+                "PASS" if output.count("METADATA_WRITE=DENIED") == 8
+                and "METADATA_WRITE=ALLOWED" not in output else "FAIL"
+            ))
             print("SANDBOX_EXIT=" + str(result.returncode))
             print("SHELL_BOOT=" + ("PASS" if "SHELL_BOOT=PASS" in output else "FAIL"))
             print("GIT_COMMIT=" + ("PASS" if "GIT_COMMIT=PASS" in output else "FAIL"))

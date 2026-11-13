@@ -27,3 +27,11 @@ def to_kelvin(celsius: float) -> float:
     if celsius < -273.15:
         raise ValueError("temperature must be at or above absolute zero")
     return celsius + 273.15
+
+
+def from_kelvin(kelvin: float) -> float:
+    """Convert Kelvin to Celsius, rejecting temperatures below absolute zero."""
+    kelvin = ensure_temperature(kelvin)
+    if kelvin < 0:
+        raise ValueError("temperature must be at or above absolute zero")
+    return kelvin - 273.15

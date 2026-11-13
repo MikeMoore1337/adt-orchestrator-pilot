@@ -8,16 +8,24 @@
 ## Использование
 
 ```python
-from converter import to_celsius, to_fahrenheit
+from converter import from_kelvin, to_celsius, to_fahrenheit, to_kelvin
 
 print(to_fahrenheit(0))  # 32.0
 print(to_celsius(212))   # 100.0
+print(to_kelvin(0))      # 273.15
+print(from_kelvin(0))    # -273.15
 ```
 
-Обе функции принимают числа `int` и `float` и возвращают `float`.
+Все функции принимают числа `int` и `float` и возвращают `float`.
 Логические значения `bool` и другие типы вызывают `TypeError`, а `nan` и
 бесконечность — `ValueError`. Целое число, слишком большое для преобразования
 в `float`, вызывает `OverflowError`.
+
+`to_kelvin(celsius)` переводит градусы Цельсия в кельвины по формуле
+`celsius + 273.15`, а `from_kelvin(kelvin)` выполняет обратное преобразование:
+`kelvin - 273.15`. Температуры ниже абсолютного нуля (меньше `-273.15 °C`
+или `0 K` соответственно) вызывают `ValueError`. На границе допустимы
+`to_kelvin(-273.15) == 0.0` и `from_kelvin(0) == -273.15`.
 
 ## Тесты
 

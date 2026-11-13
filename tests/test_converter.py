@@ -3,7 +3,7 @@
 import math
 import unittest
 
-from converter import ensure_temperature, to_celsius, to_fahrenheit, to_kelvin
+from converter import ensure_temperature, from_kelvin, to_celsius, to_fahrenheit, to_kelvin
 
 
 class BaseConverterTests(unittest.TestCase):
@@ -75,6 +75,37 @@ class KelvinTests(unittest.TestCase):
                              (float("inf"), ValueError), (float("-inf"), ValueError)):
             with self.subTest(value=value), self.assertRaises(error):
                 to_kelvin(value)
+
+
+class FromKelvinTests(unittest.TestCase):
+    def test_converts_kelvin(self):
+        for kelvin, celsius in ((0, -273.15), (273.15, 0), (373.15, 100),
+                                (233.15, -40), (310.65, 37.5)):
+            with self.subTest(kelvin=kelvin):
+                result = from_kelvin(kelvin)
+                self.assertIsInstance(result, float)
+                self.assertAlmostEqual(celsius, result)
+
+    def test_rejects_negative_kelvin(self):
+        for value in (-1, -273.15, math.nextafter(0.0, -math.inf)):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                from_kelvin(value)
+
+    def test_roundtrips_both_directions(self):
+        for celsius in (-273.15, -40, 0, 37.5, 100):
+            with self.subTest(celsius=celsius):
+                self.assertAlmostEqual(celsius, from_kelvin(to_kelvin(celsius)))
+        for kelvin in (0, 1, 233.15, 273.15, 310.65, 373.15):
+            with self.subTest(kelvin=kelvin):
+                self.assertAlmostEqual(kelvin, to_kelvin(from_kelvin(kelvin)))
+
+    def test_rejects_invalid_input(self):
+        for value, error in ((True, TypeError), (False, TypeError),
+                             ("0", TypeError), (None, TypeError),
+                             (1j, TypeError), (float("nan"), ValueError),
+                             (float("inf"), ValueError), (float("-inf"), ValueError)):
+            with self.subTest(value=value), self.assertRaises(error):
+                from_kelvin(value)
 
 
 if __name__ == "__main__":

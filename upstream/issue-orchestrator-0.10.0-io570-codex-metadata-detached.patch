@@ -1,0 +1,150 @@
+diff --git a/src/issue_orchestrator/execution/agent_runner_providers/git_worktree_access.py b/src/issue_orchestrator/execution/agent_runner_providers/git_worktree_access.py
+--- a/src/issue_orchestrator/execution/agent_runner_providers/git_worktree_access.py
++++ b/src/issue_orchestrator/execution/agent_runner_providers/git_worktree_access.py
+@@ -176,48 +176,104 @@
+ _ISOLATED_BRANCH_NAMESPACE = re.compile(r"[1-9][0-9]*-[a-z0-9][a-z0-9-]*")
+ 
+ 
+-def _isolated_branch_directory_rules(
+-    access: GitWorktreeAccess,
+-) -> list[tuple[str, str]]:
+-    """Grant write only to one issue's ref/reflog directories, not shared refs.
+-
+-    Git needs to create a sibling .lock beside HEAD's loose branch ref. An
+-    exact-file write permission cannot grant O_CREAT in a read-only parent.
+-    A per-issue refs/heads/<issue-slug>/agent ref confines those operations.
+-    """
+-    if access.git_dir == access.common_dir or access.head_ref is None:
+-        raise SandboxUnsupportedError(
+-            "Isolated Git reference mode requires a linked worktree with symbolic HEAD"
+-        )
+-    relative = access.head_ref.relative_to(access.common_dir)
+-    parts = relative.parts
+-    if (
+-        len(parts) != 4
+-        or parts[:2] != ("refs", "heads")
+-        or parts[3] != "agent"
+-        or not _ISOLATED_BRANCH_NAMESPACE.fullmatch(parts[2])
+-    ):
+-        raise SandboxUnsupportedError(
+-            "Isolated Git reference mode requires refs/heads/<issue-slug>/agent"
+-        )
+-    parent_ref = access.common_dir / "refs" / "heads" / parts[2]
+-    parent_log = access.common_dir / "logs" / "refs" / "heads" / parts[2]
+-    for root in (parent_ref, parent_log):
+-        # Reject symlinks and unexpected sibling refs before granting any write.
+-        if root.is_symlink() or not root.is_dir() or root.resolve() != root:
+-            raise SandboxUnsupportedError(
+-                f"Isolated branch Git directory is not a real directory: {root}"
+-            )
+-        children = {entry.name for entry in root.iterdir()}
+-        if children != {"agent"} or not (root / "agent").is_file():
+-            raise SandboxUnsupportedError(
+-                f"Isolated branch Git directory must contain only agent ref: {root}"
+-            )
+-        if (root / "agent").is_symlink():
+-            raise SandboxUnsupportedError(
+-                f"Isolated branch Git metadata must not contain symlinks: {root}"
+-            )
+-    return [(str(parent_ref), "write"), (str(parent_log), "write")]
++# Codex 0.167.0 transparently protects these names inside *every* writable
++# root, including a per-issue Git refs/reflog directory. In interrupted Linux
++# sandbox sessions the empty mountpoint directories can survive on the host.
++# Source: openai/codex rust-v0.167.0 protocol::PROTECTED_METADATA_PATH_NAMES.
++_CODEX_PROTECTED_METADATA = frozenset({".git", ".agents", ".codex", ".aws"})
++
++
++def _isolated_branch_directory_rules(
++    access: GitWorktreeAccess,
++) -> list[tuple[str, str]]:
++    """Constrain writes to a single issue ref; tolerate only empty Codex masks.
++
++    A linked detached reviewer has no shared branch ref to write. Its private
++    worktree Git admin is already writable; giving it no shared ref permission
++    is the narrowest safe capability for reviewing in detached HEAD.
++    """
++    if access.git_dir == access.common_dir:
++        raise SandboxUnsupportedError(
++            "Isolated Git reference mode requires a linked worktree"
++        )
++    if access.head_ref is None:
++        if access.git_dir.parent != access.common_dir / "worktrees":
++            raise SandboxUnsupportedError(
++                "Detached HEAD requires private linked-worktree Git admin"
++            )
++        head = access.git_dir / "HEAD"
++        if head.is_symlink() or not head.is_file():
++            raise SandboxUnsupportedError(
++                "Detached reviewer has no regular private HEAD"
++            )
++        try:
++            raw = head.read_text(encoding="ascii").strip()
++        except (OSError, UnicodeError) as exc:
++            raise SandboxUnsupportedError(
++                "Detached reviewer HEAD could not be read"
++            ) from exc
++        if not re.fullmatch(r"(?:[0-9a-f]{40}|[0-9a-f]{64})", raw):
++            raise SandboxUnsupportedError(
++                "Detached reviewer HEAD must contain a full commit SHA"
++            )
++        # _private_admin_rules covers the private HEAD/index/locks; the shared
++        # objects store remains writable. No shared refs/heads write grant.
++        return []
++
++    relative = access.head_ref.relative_to(access.common_dir)
++    parts = relative.parts
++    if (
++        len(parts) != 4
++        or parts[:2] != ("refs", "heads")
++        or parts[3] != "agent"
++        or not _ISOLATED_BRANCH_NAMESPACE.fullmatch(parts[2])
++    ):
++        raise SandboxUnsupportedError(
++            "Isolated Git reference mode requires refs/heads/<issue-slug>/agent"
++        )
++    parent_ref = access.common_dir / "refs" / "heads" / parts[2]
++    parent_log = access.common_dir / "logs" / "refs" / "heads" / parts[2]
++    metadata_carveouts: list[tuple[str, str]] = []
++    for root in (parent_ref, parent_log):
++        if root.is_symlink() or not root.is_dir() or root.resolve() != root:
++            raise SandboxUnsupportedError(
++                f"Isolated branch Git directory is not a real directory: {root}"
++            )
++        children = {entry.name: entry for entry in root.iterdir()}
++        agent = children.get("agent")
++        unexpected = set(children) - {"agent"} - _CODEX_PROTECTED_METADATA
++        if (
++            agent is None
++            or agent.is_symlink()
++            or not agent.is_file()
++            or unexpected
++        ):
++            raise SandboxUnsupportedError(
++                f"Isolated Git directory has unexpected ref entries: {root}"
++            )
++        for name in sorted(_CODEX_PROTECTED_METADATA & children.keys()):
++            protected = children[name]
++            # Only the four documented native Codex placeholders, when truly
++            # empty, can appear beside the agent branch. Never grant writes
++            # to links, mounts, content-bearing dirs or arbitrary siblings.
++            if (
++                protected.is_symlink()
++                or not protected.is_dir()
++                or protected.resolve() != protected
++                or os.path.ismount(protected)
++                or any(protected.iterdir())
++            ):
++                raise SandboxUnsupportedError(
++                    f"Isolated Git metadata mask is unsafe: {protected}"
++                )
++            # Defense in depth: an explicitly existing metadata mask is
++            # read-only even when its per-issue parent ref directory is writable.
++            metadata_carveouts.append((str(protected), "read"))
++    return [
++        (str(parent_ref), "write"),
++        (str(parent_log), "write"),
++        *metadata_carveouts,
++    ]
+ 
+ 
+ def _head_rules(access: GitWorktreeAccess) -> list[tuple[str, str]]:

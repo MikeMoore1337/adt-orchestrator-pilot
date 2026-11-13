@@ -62,7 +62,7 @@ def require_environment() -> Path:
     if os.environ.get("ISSUE_ORCHESTRATOR_ISOLATED_GIT_REF_DIRS") != "1":
         raise RuntimeError("Original engine isolated-ref opt-in is mandatory")
     import issue_orchestrator.execution.agent_runner_providers.git_worktree_access as git_policy
-    patched_src = home / ".local/state/adt-io570/original-engine-namespaced-callback/src"
+    patched_src = home / ".local/state/adt-io570/original-engine-namespaced-metadata/src"
     if not Path(git_policy.__file__).resolve().is_relative_to(patched_src):
         raise RuntimeError("Patched original engine source not loaded from isolated checkout")
     print("ORIGINAL_ENGINE_ISOLATED_REF_SOURCE=PASS")
@@ -110,6 +110,15 @@ def probe(runtime: Path) -> bool:
             if not (linked / ".git").is_file():
                 raise RuntimeError("Fixture must be a LINKED git worktree")
 
+            # Reproduce the actual WSL2 Git metadata layout left behind by
+            # interrupted Codex 0.167.0 native sandbox sessions.
+            namespace = base / ".git/refs/heads/7-io570-probe"
+            reflogs = base / ".git/logs/refs/heads/7-io570-probe"
+            metadata_names = (".git", ".agents", ".codex", ".aws")
+            for root_dir in (namespace, reflogs):
+                for name in metadata_names:
+                    (root_dir / name).mkdir()
+
             scope = compute_session_scope(
                 AgentConfig(
                     prompt_path=Path(".prompts/dev.md"),
@@ -149,6 +158,14 @@ def probe(runtime: Path) -> bool:
                 raise RuntimeError("Non-isolated or exact-file Git writable roots detected")
             if str(base / ".git/refs/heads") in write_paths:
                 raise RuntimeError("Shared branch refs are writable: fail closed")
+            rules = dict(grants)
+            if any(
+                rules.get(str(directory / name)) != "read"
+                for directory in (namespace, reflogs)
+                for name in metadata_names
+            ):
+                raise RuntimeError("Codex metadata directories not explicitly read-only")
+            print("CODEX_METADATA_MASK_RULES=PASS")
             print("LINKED_WORKTREE=PASS")
             print("EXACT_GIT_FILE_WRITE_RULES=0")
             print("NAMESPACED_REF_WRITE=PASS")
@@ -187,6 +204,12 @@ def probe(runtime: Path) -> bool:
                 "then echo GH_CANARY=READABLE; else echo GH_CANARY=DENIED; fi",
                 f"if printf BAD > {quote(str(outside))} 2>/dev/null; "
                 "then echo OUTSIDE_WRITE=ALLOWED; else echo OUTSIDE_WRITE=DENIED; fi",
+                *(
+                    f"if printf BAD > {quote(str(root_dir / name / 'forbidden.txt'))} 2>/dev/null; "
+                    "then echo METADATA_WRITE=ALLOWED; else echo METADATA_WRITE=DENIED; fi"
+                    for root_dir in (namespace, reflogs)
+                    for name in metadata_names
+                ),
             ))
             env = os.environ.copy()
             env["CODEX_HOME"] = str(runtime)
@@ -216,7 +239,18 @@ def probe(runtime: Path) -> bool:
                 and "GH_CANARY=READABLE" not in output
                 and "OUTSIDE_WRITE=DENIED" in output
                 and not outside.exists()
+                and output.count("METADATA_WRITE=DENIED") == 8
+                and "METADATA_WRITE=ALLOWED" not in output
+                and not any(
+                    (root_dir / name / "forbidden.txt").exists()
+                    for root_dir in (namespace, reflogs)
+                    for name in metadata_names
+                )
             )
+            print("CODEX_METADATA_MASK_WRITE_DENY=" + (
+                "PASS" if output.count("METADATA_WRITE=DENIED") == 8
+                and "METADATA_WRITE=ALLOWED" not in output else "FAIL"
+            ))
             print("SANDBOX_EXIT=" + str(result.returncode))
             print("SHELL_BOOT=" + ("PASS" if "SHELL_BOOT=PASS" in output else "FAIL"))
             print("GIT_COMMIT=" + ("PASS" if "GIT_COMMIT=PASS" in output else "FAIL"))
@@ -238,6 +272,73 @@ def probe(runtime: Path) -> bool:
             )
             if result.stderr.strip():
                 print("SANDBOX_DIAGNOSTIC=" + result.stderr.strip()[-1800:])
+
+            # Original review-exchange creates a detached sibling worktree.
+            # A reviewer may commit in its PRIVATE admin, never in main refs.
+            reviewer = root / "reviewer"
+            command("git", "worktree", "add", "-q", "--detach",
+                    str(reviewer), "HEAD", cwd=base)
+            reviewer_scope = compute_session_scope(
+                AgentConfig(
+                    prompt_path=Path(".prompts/reviewer.md"),
+                    prompt_relative=".prompts/reviewer.md",
+                    provider="codex", sandbox=True,
+                ),
+                SandboxScopeContext(
+                    task_kind="review_exchange_reviewer", worktree=reviewer
+                ),
+            )
+            if reviewer_scope is None:
+                raise RuntimeError("Detached reviewer sandbox missing")
+            reviewer_args = CodexProvider().apply_scope(reviewer_scope)
+            detached_rules = git_worktree_filesystem_rules(
+                resolve_git_worktree_access(reviewer)
+            )
+            if any(
+                perm == "write" and path.startswith(
+                    str(base / ".git/refs/heads")
+                )
+                for path, perm in detached_rules
+            ):
+                raise RuntimeError("Detached reviewer gained shared branch write")
+            reviewer_script = "; ".join((
+                f"printf REVIEW > {quote(str(reviewer / 'review-note.txt'))}",
+                f"git -C {quote(str(reviewer))} add -- review-note.txt && "
+                f"git -C {quote(str(reviewer))} "
+                "-c user.name=IO570-Reviewer "
+                "-c user.email=reviewer@example.invalid commit -qm "
+                "detached-review-probe && echo DETACHED_COMMIT=PASS",
+                f"if git -C {quote(str(reviewer))} update-ref refs/heads/main "
+                f"$(git -C {quote(str(reviewer))} rev-parse HEAD) >/dev/null 2>&1; "
+                "then echo REVIEWER_MAIN=WRITABLE; "
+                "else echo REVIEWER_MAIN=DENIED; fi",
+            ))
+            reviewer_run = subprocess.run(
+                [
+                    str((home / ".local/share/adt-io570/codex-0.167.0/bin/codex").resolve()),
+                    "sandbox", "--permission-profile", "issue_orchestrator_scope",
+                    "-C", str(reviewer), *reviewer_args[5:],
+                    "--", "/bin/sh", "-c", reviewer_script,
+                ],
+                cwd=reviewer, env=env, capture_output=True, text=True,
+                timeout=30, check=False,
+            )
+            reviewer_ok = (
+                reviewer_run.returncode == 0
+                and "DETACHED_COMMIT=PASS" in reviewer_run.stdout
+                and "REVIEWER_MAIN=DENIED" in reviewer_run.stdout
+                and "REVIEWER_MAIN=WRITABLE" not in reviewer_run.stdout
+                and (reviewer / "review-note.txt").is_file()
+                and command("git", "rev-parse", "--abbrev-ref", "HEAD",
+                            cwd=reviewer) == "HEAD"
+            )
+            print("DETACHED_REVIEWER_NATIVE=" + (
+                "PASS" if reviewer_ok else "FAIL"
+            ))
+            if not reviewer_ok and reviewer_run.stderr.strip():
+                print("REVIEWER_ERROR_TYPE=SANDBOX_NONZERO")
+            passed = passed and reviewer_ok
+
             print("LINKED_SANDBOX_GATE=" + ("PASS" if passed else "FAIL"))
             return passed
     finally:

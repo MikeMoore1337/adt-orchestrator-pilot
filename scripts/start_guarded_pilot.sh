@@ -29,7 +29,7 @@ ORIGINAL_ROOT="$HOME/projects/issue-orchestrator"
 export ISSUE_ORCHESTRATOR_PYTHON="$ORIGINAL_ROOT/.venv/bin/python"
 export PATH="$HOME/.local/share/adt-io570/codex-0.167.0/bin:$ORIGINAL_ROOT/.venv/bin:$PATH"
 export ISSUE_ORCHESTRATOR_ISOLATED_GIT_REF_DIRS=1
-PATCHED_ENGINE="$HOME/.local/state/adt-io570/original-engine-namespaced-callback"
+PATCHED_ENGINE="$HOME/.local/state/adt-io570/original-engine-namespaced-metadata"
 [[ "$(git -C "$PATCHED_ENGINE" rev-parse HEAD 2>/dev/null)" == \
   "d4a79824ccd806089cf3f70ec632d39b8ee255ea" ]] ||
   fail "Pinned original engine patch worktree missing or wrong source SHA"
@@ -51,6 +51,9 @@ git -C "$PATCHED_ENGINE" apply --reverse --check \
 git -C "$PATCHED_ENGINE" apply --reverse --check \
   "$ROOT/upstream/issue-orchestrator-0.10.0-io570-callback-env.patch" ||
   fail "Codex scoped callback environment patch is absent or drifted"
+git -C "$PATCHED_ENGINE" apply --reverse --check \
+  "$ROOT/upstream/issue-orchestrator-0.10.0-io570-codex-metadata-detached.patch" ||
+  fail "Codex Git metadata and detached reviewer patch is absent or drifted"
 export PYTHONPATH="$PATCHED_ENGINE/src"
 echo "ORIGINAL_ENGINE_NAMESPACED_SOURCE=PASS"
 export ISSUE_ORCHESTRATOR_CODEX_RUNTIME_ROOT="$HOME/.local/state/adt-io570/codex-runtime"

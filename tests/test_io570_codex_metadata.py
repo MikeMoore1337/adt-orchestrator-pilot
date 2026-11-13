@@ -175,6 +175,21 @@ class CodexProtectedGitNamespacesTests(unittest.TestCase):
             with self.assertRaises(self.error_type):
                 self.rules(linked)
 
+    def test_real_native_probe_source_contract(self) -> None:
+        probe = (
+            Path(__file__).resolve().parents[1]
+            / "scripts/probe_namespaced_codex_sandbox.py"
+        ).read_text(encoding="utf-8")
+        compile(probe, "probe_namespaced_codex_sandbox.py", "exec")
+        self.assertIn("CODEX_METADATA_MASK_RULES=PASS", probe)
+        self.assertIn("CODEX_METADATA_MASK_WRITE_DENY=", probe)
+        self.assertIn("DETACHED_REVIEWER_NATIVE=", probe)
+        self.assertIn("LINKED_SANDBOX_GATE=", probe)
+        self.assertNotIn("codex exec", probe.lower().replace(
+            "does not run codex exec", ""
+        ))
+        self.assertNotIn("danger-full-access", probe)
+
     def test_main_repository_and_legacy_branch_denied(self) -> None:
         with linked_fixture() as (base, linked, _):
             with self.assertRaises(self.error_type):

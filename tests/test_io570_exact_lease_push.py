@@ -150,5 +150,38 @@ class ExactLeaseTests(unittest.TestCase):
             self.prepare()
 
 
+    def test_original_git_working_copy_can_publish_new_branch(self):
+        from issue_orchestrator.execution.git_working_copy import GitWorkingCopy
+        outcome = GitWorkingCopy().push(self.work)
+        self.assertTrue(outcome.success, outcome.message)
+        self.assertEqual(self.remote_sha(),
+                         self.git("rev-parse", "HEAD", cwd=self.work).stdout.strip())
+
+    def test_original_git_working_copy_existing_remote_with_limited_refspec(self):
+        from issue_orchestrator.execution.git_working_copy import GitWorkingCopy
+        self.git("push", "origin", f"HEAD:refs/heads/{self.branch}", cwd=self.work)
+        self.git("update-ref", "-d", f"refs/remotes/origin/{self.branch}",
+                 cwd=self.work, check=False)
+        next_sha = self.commit("agent incremental")
+        outcome = GitWorkingCopy().push(self.work)
+        self.assertTrue(outcome.success, outcome.message)
+        self.assertEqual(self.remote_sha(), next_sha)
+
+    def test_original_git_working_copy_preflight_leaves_remote_unchanged(self):
+        from issue_orchestrator.execution.git_working_copy import GitWorkingCopy
+        before = self.remote_sha()
+        result = GitWorkingCopy().push_preflight(self.work)
+        self.assertTrue(result.would_succeed, result.error)
+        self.assertEqual(self.remote_sha(), before)
+
+    def test_original_git_working_copy_rejects_skipped_hooks(self):
+        from issue_orchestrator.execution.git_working_copy import GitWorkingCopy
+        before = self.remote_sha()
+        result = GitWorkingCopy().push(self.work, skip_hooks=True)
+        self.assertFalse(result.success)
+        self.assertIn("forbids skipped hooks", result.message)
+        self.assertEqual(self.remote_sha(), before)
+
+
 if __name__ == "__main__":
     unittest.main()

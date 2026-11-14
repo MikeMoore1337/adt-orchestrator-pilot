@@ -55,7 +55,8 @@ class Stage2ScopeTests(unittest.TestCase):
         patchname = "issue-orchestrator-0.10.0-io570-exact-lease-push.patch"
         for body in (patched, gated, ci):
             self.assertIn(patchname, body)
-        self.assertIn("git apply --reverse --check", gated)
+        self.assertIn("apply --reverse --check", gated)
+        self.assertIn('git -C "$PATCHED_ENGINE" apply --reverse --check', gated)
         self.assertIn("git_push_operations.py", ci)
         self.assertIn("git_working_copy.py", ci)
         self.assertIn("test_io570_exact_lease_push.py", ci)

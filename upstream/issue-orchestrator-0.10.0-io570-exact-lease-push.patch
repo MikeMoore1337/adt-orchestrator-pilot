@@ -9,10 +9,9 @@ diff --git a/src/issue_orchestrator/execution/git_push_operations.py b/src/issue
  from pathlib import Path
  from typing import Protocol
  
-@@ -215,3 +216,65 @@
+@@ -215,2 +216,64 @@
          return "Authentication issue - contact orchestrator administrator."
      return None
- 
 +
 +def io570_exact_lease_push_args(
 +    run_git: GitCommand,

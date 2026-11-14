@@ -9,7 +9,7 @@ diff --git a/src/issue_orchestrator/execution/git_push_operations.py b/src/issue
  from pathlib import Path
  from typing import Protocol
  
-@@ -215,2 +216,64 @@
+@@ -215,2 +216,63 @@
          return "Authentication issue - contact orchestrator administrator."
      return None
 +
@@ -73,7 +73,6 @@ diff --git a/src/issue_orchestrator/execution/git_push_operations.py b/src/issue
 +        args.append("-u")
 +    args.extend([remote, f"HEAD:{target_ref}"])
 +    return args
-+
 diff --git a/src/issue_orchestrator/execution/git_working_copy.py b/src/issue_orchestrator/execution/git_working_copy.py
 --- a/src/issue_orchestrator/execution/git_working_copy.py
 +++ b/src/issue_orchestrator/execution/git_working_copy.py

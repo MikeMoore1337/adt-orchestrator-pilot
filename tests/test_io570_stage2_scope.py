@@ -59,7 +59,24 @@ class Stage2ScopeTests(unittest.TestCase):
         self.assertIn('git -C "$PATCHED_ENGINE" apply --reverse --check', gated)
         self.assertIn("git_push_operations.py", ci)
         self.assertIn("git_working_copy.py", ci)
-        self.assertIn("test_io570_exact_lease_push.py", ci)
+        self.assertIn("qa_host/test_io570_exact_lease_push.py", ci)
+        self.assertIn("-s qa_host -p test_io570_exact_lease_push.py -v", ci)
+
+    def test_git_push_integration_tests_are_not_agent_discoverable(self):
+        # Agents must never loosen their git-push security hook to run host fixtures.
+        # Original quick/publish remain the full unit suite under tests/.
+        self.assertFalse((ROOT / "tests/test_io570_exact_lease_push.py").exists())
+        dedicated = ROOT / "qa_host/test_io570_exact_lease_push.py"
+        self.assertTrue(dedicated.is_file())
+        source = dedicated.read_text(encoding="utf-8")
+        self.assertIn('self.git("push", "origin"', source)
+        self.assertIn("GitWorkingCopy().push", source)
+        config = (ROOT / ".issue-orchestrator/config/modes/upstream-pilot/main.yaml").read_text()
+        self.assertEqual(config.count("python -m unittest discover -s tests -v"), 2)
+        ci = (ROOT / ".github/workflows/io570-isolated-git-refs.yml").read_text()
+        self.assertIn("test ! -e tests/test_io570_exact_lease_push.py", ci)
+        self.assertIn("-s qa_host -p test_io570_exact_lease_push.py -v", ci)
+
 
     def test_shell_syntax(self):
         for filename in ("scripts/start_guarded_pilot.sh",

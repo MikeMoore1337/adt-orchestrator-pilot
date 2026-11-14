@@ -6,6 +6,14 @@ The original engine's ordinary `git fetch origin <branch>` plus a bare `--force-
 
 The canonical launcher remains `scripts/start_guarded_pilot.sh` after `scripts/prepare_namespaced_original_engine.sh` installs the patch into a private pinned checkout. Source diff, interpreter, sandbox, credentials, active issue labels and dependencies require independent verification before activation. GitHub source-only CI does not prove a physical Codex session, engine PR publication or immutable in-process scope: the pilot label is mutable, and the launcher checks membership only once. Do not extend this setup to untrusted production Issue populations. An explicit owner authorization is required to **start** Codex even after the patch PR passes and is merged.
 
+## Stage-2 real engine blocking finding - 2026-11-14 (after owner activation)
+
+Owner ran the single guarded original-engine process. Its scheduler selected #20 and #21 in WIP=1, then the Codex coding session for #20 implemented and committed `to_rankine` plus focused tests. Original agent comments report **19 converter tests passed** but `python -m unittest discover -s tests -v` failed because 10 `tests/test_io570_exact_lease_push.py` checks issue `git push` into disposable bare Git fixtures while the native **coding-agent sandbox forbids ALL git push**. Original engine correctly marked #20 `blocked`; #21 stays dependency-blocked. No engine-created PR yet. This is a test-suite layering error, NOT evidence the feature code is wrong.
+
+**Repair scope:** move the exact local-Git-push test file unchanged from `tests/` to `qa_host/`. The original coding quick/publish unittest stays unmodified and continues to include the entire agent-safe `tests/` suite. Keep the host-only exact-lease tests **mandatory** in the original-engine Git Actions workflow, with its patched source and no Codex sandbox. Add a regression contract that refuses to rediscover the host-only file under `tests/`. The source change **does not** disable any native command guard or change the original engine's sandbox/credentials/push lease. This is safe only in the disposable pilot repository.
+
+**Recovery guard:** while #20 is `blocked`, do not remove its label, delete/reset the local Git worktree, recreate an implementation, or launch another Codex session. First stop the already-running original engine gracefully, verify the committed #20 code/ref/cleanliness and capture an escrow/bundle in physical WSL2, merge the source fix after real CI, and let the original owner control any retry/reconciliation. An unverified local commit must not be published manually as evidence of unattended PR creation.
+
 ## Historical Stage-1 journal
 
 # Original Issue-Orchestrator 0.10.0 - disposable pilot #570

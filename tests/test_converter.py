@@ -3,7 +3,9 @@
 import math
 import unittest
 
-from converter import ensure_temperature, from_kelvin, to_celsius, to_fahrenheit, to_kelvin
+from converter import (
+    ensure_temperature, from_kelvin, to_celsius, to_fahrenheit, to_kelvin, to_rankine,
+)
 
 
 class BaseConverterTests(unittest.TestCase):
@@ -106,6 +108,30 @@ class FromKelvinTests(unittest.TestCase):
                              (float("inf"), ValueError), (float("-inf"), ValueError)):
             with self.subTest(value=value), self.assertRaises(error):
                 from_kelvin(value)
+
+
+class RankineTests(unittest.TestCase):
+    def test_converts_kelvin(self):
+        for kelvin, rankine in ((0, 0.0), (1, 1.8), (273.15, 491.67),
+                                (373.15, 671.67), (310.65, 559.17)):
+            with self.subTest(kelvin=kelvin):
+                result = to_rankine(kelvin)
+                self.assertIsInstance(result, float)
+                self.assertAlmostEqual(rankine, result)
+        self.assertEqual(0.0, to_rankine(0))
+
+    def test_rejects_negative_kelvin(self):
+        for value in (-1, -273.15, math.nextafter(0.0, -math.inf)):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                to_rankine(value)
+
+    def test_rejects_invalid_input(self):
+        for value, error in ((True, TypeError), (False, TypeError),
+                             ("0", TypeError), (None, TypeError),
+                             (1j, TypeError), (float("nan"), ValueError),
+                             (float("inf"), ValueError), (float("-inf"), ValueError)):
+            with self.subTest(value=value), self.assertRaises(error):
+                to_rankine(value)
 
 
 if __name__ == "__main__":

@@ -35,3 +35,11 @@ def from_kelvin(kelvin: float) -> float:
     if kelvin < 0:
         raise ValueError("temperature must be at or above absolute zero")
     return kelvin - 273.15
+
+
+def to_rankine(kelvin: float) -> float:
+    """Convert Kelvin to Rankine, rejecting temperatures below absolute zero."""
+    kelvin = ensure_temperature(kelvin)
+    if kelvin < 0:
+        raise ValueError("temperature must be at or above absolute zero")
+    return kelvin * 9 / 5

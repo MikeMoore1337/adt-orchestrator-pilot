@@ -13,7 +13,8 @@ on:
       - 'tests/test_io570_validation_timings.py'
       - 'tests/test_isolated_ref_git_policy.py'
       - 'tests/test_io570_codex_metadata.py'
-      - 'tests/test_io570_exact_lease_push.py'
+      - 'tests/test_io570_exact_lease_push.py' # prior location: trigger CI if removed
+      - 'qa_host/test_io570_exact_lease_push.py' # trusted CI-only Git push fixtures
       - 'tests/test_io570_stage2_scope.py'
       - '.github/workflows/io570-isolated-git-refs.yml'
 
@@ -92,8 +93,12 @@ jobs:
             -s tests -p test_io570_validation_timings.py -v
           "${RUNNER_TEMP}/io570-venv/bin/python" -m unittest discover \
             -s tests -p test_io570_completion_auth.py -v
+          # These tests push only to disposable local bare Git remotes. They must NEVER
+          # run inside the Codex coding-agent sandbox: its git-push denial is mandatory.
+          test -f qa_host/test_io570_exact_lease_push.py
+          test ! -e tests/test_io570_exact_lease_push.py
           "${RUNNER_TEMP}/io570-venv/bin/python" -m unittest discover \
-            -s tests -p test_io570_exact_lease_push.py -v
+            -s qa_host -p test_io570_exact_lease_push.py -v
           "${RUNNER_TEMP}/io570-venv/bin/python" -m unittest discover \
             -s tests -p test_io570_stage2_scope.py -v
           echo "ORIGINAL_ENGINE_NAMESPACED_GIT_DAC=PASS"

@@ -1,0 +1,162 @@
+diff --git a/src/issue_orchestrator/execution/git_push_operations.py b/src/issue_orchestrator/execution/git_push_operations.py
+--- a/src/issue_orchestrator/execution/git_push_operations.py
++++ b/src/issue_orchestrator/execution/git_push_operations.py
+@@ -3,6 +3,7 @@
+ from __future__ import annotations
+ 
+ import os
++import re
+ from pathlib import Path
+ from typing import Protocol
+ 
+@@ -215,2 +216,63 @@
+         return "Authentication issue - contact orchestrator administrator."
+     return None
++
++def io570_exact_lease_push_args(
++    run_git: GitCommand,
++    worktree: Path,
++    remote: str,
++    branch: str,
++    *,
++    set_upstream: bool = True,
++    dry_run: bool = False,
++    env: dict[str, str] | None = None,
++) -> list[str]:
++    """Pilot-only exact-lease push, not based on remote-tracking refs.
++
++    The restricted fetch refspec may track only main. Fetching a branch
++    by name populates FETCH_HEAD, but does not necessarily track it.
++    Verify remote tip, fetch it, require fast-forward ancestry, and
++    use an explicit SHA lease to reject concurrent remote changes.
++    """
++    if os.environ.get("ISSUE_ORCHESTRATOR_IO570_EXACT_LEASE_PUSH") != "1":
++        raise ValueError("exact-lease pilot opt-in is not enabled")
++    if remote != "origin" or not re.fullmatch(r"(?:20|21)-[a-z0-9][a-z0-9-]*/agent", branch):
++        raise ValueError("exact-lease pilot allows only scoped #20/#21 agent branches on origin")
++    target_ref = f"refs/heads/{branch}"
++
++    def read(*argv: str):
++        return run_git(worktree, list(argv), check=False, timeout_s=60, env=env)
++
++    symbolic = read("symbolic-ref", "--quiet", "--short", "HEAD")
++    if symbolic.returncode != 0 or symbolic.stdout.strip() != branch:
++        raise ValueError("push worktree is no longer on the expected agent branch")
++    head = read("rev-parse", "--verify", "HEAD")
++    local_sha = head.stdout.strip()
++    if head.returncode != 0 or not re.fullmatch(r"[0-9a-f]{40}", local_sha):
++        raise ValueError("local HEAD identity cannot be verified")
++
++    listing = read("ls-remote", "--heads", remote, target_ref)
++    if listing.returncode != 0:
++        raise ValueError("cannot observe exact remote agent branch")
++    rows = [line.split("\t") for line in listing.stdout.splitlines() if line]
++    if len(rows) > 1 or any(len(row) != 2 or row[1] != target_ref or not re.fullmatch(r"[0-9a-f]{40}", row[0]) for row in rows):
++        raise ValueError("unexpected remote ref identity; refusing ambiguous lease")
++
++    expected = rows[0][0] if rows else ""
++    if expected:
++        fetched = read("fetch", "--no-tags", remote, target_ref)
++        if fetched.returncode != 0:
++            raise ValueError("cannot fetch exact remote branch for ancestry verification")
++        fetched_head = read("rev-parse", "--verify", "FETCH_HEAD")
++        if fetched_head.returncode != 0 or fetched_head.stdout.strip() != expected:
++            raise ValueError("remote branch changed during lease preparation")
++        ancestor = read("merge-base", "--is-ancestor", expected, local_sha)
++        if ancestor.returncode != 0:
++            raise ValueError("remote branch does not belong to local HEAD history")
++
++    args = ["push", f"--force-with-lease={target_ref}:{expected}"]
++    if dry_run:
++        args.append("--dry-run")
++    if set_upstream:
++        args.append("-u")
++    args.extend([remote, f"HEAD:{target_ref}"])
++    return args
+diff --git a/src/issue_orchestrator/execution/git_working_copy.py b/src/issue_orchestrator/execution/git_working_copy.py
+--- a/src/issue_orchestrator/execution/git_working_copy.py
++++ b/src/issue_orchestrator/execution/git_working_copy.py
+@@ -636,18 +636,32 @@
+         )
+         if auth_error:
+             return auth_error
+-        fetch_error = git_push_ops.fetch_for_push(
+-            self._run_git,
+-            self._clear_stale_remote_ref,
+-            worktree,
+-            remote,
+-            branch,
+-            env=auth_env,
+-        )
+-        if fetch_error:
+-            return fetch_error
++        if os.environ.get("ISSUE_ORCHESTRATOR_IO570_EXACT_LEASE_PUSH") == "1":
++            if skip_hooks:
++                return PushResult(success=False, branch=branch, remote=remote,
++                                  message="Stage-2 exact-lease push forbids skipped hooks",
++                                  retryable=False)
++            try:
++                args = git_push_ops.io570_exact_lease_push_args(
++                    self._run_git, worktree, remote, branch,
++                    set_upstream=set_upstream, env=auth_env,
++                )
++            except ValueError as exc:
++                return PushResult(success=False, branch=branch, remote=remote,
++                                  message=str(exc), retryable=False)
++        else:
++            fetch_error = git_push_ops.fetch_for_push(
++                self._run_git,
++                self._clear_stale_remote_ref,
++                worktree,
++                remote,
++                branch,
++                env=auth_env,
++            )
++            if fetch_error:
++                return fetch_error
+ 
+-        args = git_push_ops.build_push_args(remote, branch, set_upstream, skip_hooks)
++            args = git_push_ops.build_push_args(remote, branch, set_upstream, skip_hooks)
+ 
+         start = time.monotonic()
+         try:
+@@ -716,18 +730,28 @@
+         )
+         if auth_error:
+             return auth_error
+-        fetch_error = git_push_ops.fetch_for_preflight(
+-            self._run_git,
+-            self._clear_stale_remote_ref,
+-            worktree,
+-            remote,
+-            branch,
+-            env=auth_env,
+-        )
+-        if fetch_error:
+-            return fetch_error
++        if os.environ.get("ISSUE_ORCHESTRATOR_IO570_EXACT_LEASE_PUSH") == "1":
++            try:
++                args = git_push_ops.io570_exact_lease_push_args(
++                    self._run_git, worktree, remote, branch,
++                    dry_run=True, env=auth_env,
++                )
++            except ValueError as exc:
++                return PreflightResult(would_succeed=False, error=str(exc),
++                                       fix_hint="Preserve agent branch and exact remote lease")
++        else:
++            fetch_error = git_push_ops.fetch_for_preflight(
++                self._run_git,
++                self._clear_stale_remote_ref,
++                worktree,
++                remote,
++                branch,
++                env=auth_env,
++            )
++            if fetch_error:
++                return fetch_error
+ 
+-        args = ["push", "--dry-run", "-u", remote, branch, "--force-with-lease"]
++            args = ["push", "--dry-run", "-u", remote, branch, "--force-with-lease"]
+ 
+         try:
+             self._run_git(worktree, args, timeout_s=60, env=auth_env)

@@ -133,19 +133,19 @@ class OriginalGuardrailContracts(unittest.TestCase):
         self.assertEqual(
             scope["target"]["repository"], "MikeMoore1337/adt-orchestrator-pilot"
         )
-        self.assertEqual(scope["target"]["issues"], [7, 8])
+        self.assertEqual(scope["target"]["issues"], [20, 21])
         self.assertFalse(scope["constraints"]["allowed_runtime"])
         self.assertTrue(scope["constraints"]["host_cli_authenticated"])
         self.assertFalse(scope["constraints"]["immutable_issue_scope_enforced"])
         self.assertIn("max_concurrent_sessions: 1", config)
-        self.assertNotIn("  issue: 7", config)
-        self.assertNotIn("  issue: 8", config)
+        self.assertNotIn("  issue: 20", config)
+        self.assertNotIn("  issue: 21", config)
         self.assertIn("  max_to_start: 2", config)
         self.assertIn("    max_concurrent_sessions: 1", config)
         self.assertIn("    session_timeout_minutes: 20", config)
         self.assertIn("    timeout_minutes: 15", config)
         self.assertIn("    timeout_minutes: 10", config)
-        self.assertIn('  label: "adt-io570-pilot-20261109"', config)
+        self.assertIn('  label: "adt-io570-stage2-20261114"', config)
         self.assertIn("  seed_ref: origin/main", config)
         probe = ROOT / "scripts/probe_namespaced_codex_sandbox.py"
         compile(probe.read_text(encoding="utf-8"), str(probe), "exec")
@@ -171,7 +171,8 @@ class OriginalGuardrailContracts(unittest.TestCase):
         self.assertIn("  seed_ref: origin/main", config)
         self.assertNotIn("  seed_ref: HEAD", config)
         self.assertIn("  enabled: false", config)
-        self.assertIn("adt-io570-pilot-20261109", config)
+        self.assertIn("adt-io570-stage2-20261114", config)
+        self.assertNotIn("adt-io570-pilot-20261109", config)
 
     def test_launch_config_gate_is_real_python_and_fail_closed(self) -> None:
         wrapper = (ROOT / "scripts/start_guarded_pilot.sh").read_text(
@@ -198,17 +199,22 @@ class OriginalGuardrailContracts(unittest.TestCase):
         wrapper = (ROOT / "scripts/start_guarded_pilot.sh").read_text(
             encoding="utf-8"
         )
-        self.assertIn('"$GH7" == *"io:auto-retried-interrupted-coding"*', wrapper)
-        self.assertIn('if [[ "$GH7" == *"needs-human"* ]]; then', wrapper)
-        self.assertIn("preserve the backed-up commit", wrapper)
+        self.assertIn("io:auto-retried-interrupted-coding", wrapper)
+        self.assertIn("needs-human", wrapper)
+        self.assertIn("for issue in 20 21", wrapper)
+        self.assertIn("preserve and investigate, do not retry", wrapper)
+        self.assertIn("Unexpected open Issue", wrapper)
 
     def test_agent_instructions_are_scoped_to_authorized_guarded_pilot(self) -> None:
         text = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
-        self.assertIn("SCOPED LIVE PILOT", text)
+        self.assertIn("PREPARATION - NOT ACTIVATED", text)
+        self.assertIn("#20", text)
+        self.assertIn("#21", text)
+        self.assertIn("separate explicit owner activation", text)
         self.assertIn("scripts/start_guarded_pilot.sh", text)
         self.assertIn("original engine", text)
         self.assertIn("origin/main", text)
-        self.assertNotIn("ENGINE NOT ACTIVATED", text)
+        self.assertNotIn("SCOPED LIVE PILOT", text)
         self.assertNotIn("SOURCE-ONLY PREPARATION", text)
 
 

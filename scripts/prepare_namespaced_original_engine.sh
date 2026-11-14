@@ -43,6 +43,23 @@ if [[ ! -e "$target" ]]; then
   git -C "$target" apply "$metadata_patch"
 fi
 
+# Add the separate Stage-2 exact remote SHA lease compatibility patch.
+# Existing owner Stage-1 patched worktree is preserved; no hard reset or cleaning.
+lease_patch="$repo/upstream/issue-orchestrator-0.10.0-io570-exact-lease-push.patch"
+if ! git -C "$target" apply --reverse --check "$lease_patch" >/dev/null 2>&1; then
+  test "$(git -C "$target" hash-object src/issue_orchestrator/execution/git_push_operations.py)" = \
+    "6317043ccec85ab07a883e4eb0f41126a33a3cc8" ||
+    { echo "EXACT_LEASE_PUSH_SOURCE_PIN=FAIL" >&2; exit 1; }
+  test "$(git -C "$target" hash-object src/issue_orchestrator/execution/git_working_copy.py)" = \
+    "4804e1c7f62eb45158f909296bdb4f7e3ad201b0" ||
+    { echo "EXACT_LEASE_WORKTREE_SOURCE_PIN=FAIL" >&2; exit 1; }
+  git -C "$target" apply --check "$lease_patch" ||
+    { echo "EXACT_LEASE_PUSH_APPLY=FAIL" >&2; exit 1; }
+  git -C "$target" apply "$lease_patch"
+fi
+git -C "$target" apply --reverse --check "$lease_patch" ||
+  { echo "EXACT_LEASE_PUSH_PATCH=FAIL" >&2; exit 1; }
+
 [[ "$(git -C "$target" rev-parse HEAD)" == "$pin" ]] ||
   { echo "PATCHED_ENGINE_SOURCE_PIN=FAIL" >&2; exit 1; }
 expected="$(printf '%s\n' \
@@ -52,12 +69,15 @@ expected="$(printf '%s\n' \
   'src/issue_orchestrator/entrypoints/cli_tools/agent_callback.py' \
   'src/issue_orchestrator/execution/agent_runner_providers/git_worktree_access.py' \
   'src/issue_orchestrator/execution/agent_runner_providers/sandbox.py' \
+  'src/issue_orchestrator/execution/git_push_operations.py' \
+  'src/issue_orchestrator/execution/git_working_copy.py' \
   'src/issue_orchestrator/infra/validation_timings.py')"
 actual="$(git -C "$target" diff --name-only)"
 [[ "$actual" == "$expected" ]] ||
   { echo "PATCHED_ENGINE_FILES=UNEXPECTED" >&2; exit 1; }
 git -C "$target" diff --check
 echo "PATCHED_ENGINE_FILES=PASS"
+echo "EXACT_LEASE_PUSH_PATCH=PASS"
 echo "ORIGINAL_ENGINE_UNMODIFIED=YES"
 echo "NAMESPACED_ENGINE_READY_FOR_NO_MODEL_PROBE=YES"
 echo "PATCHED_ENGINE_PATH=$target"

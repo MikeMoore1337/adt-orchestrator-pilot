@@ -8,11 +8,11 @@
     "repository": "MikeMoore1337/adt-orchestrator-pilot",
     "branch": "main",
     "issues": [
-      7,
-      8
+      20,
+      21
     ],
-    "label": "adt-io570-pilot-20261109",
-    "dependency": "Depends-on: #7"
+    "label": "adt-io570-stage2-20261114",
+    "dependency": "Depends-on: #20"
   },
   "constraints": {
     "wip": 1,
@@ -24,6 +24,10 @@
     "api_key_billing_allowed": false,
     "host_cli_authenticated": true,
     "host_cli_auth_evidence": "OWNER_REPORTED_WSL2_CHATGPT_LOGIN",
-    "immutable_issue_scope_enforced": false
+    "immutable_issue_scope_enforced": false,
+    "exact_launch_allowlist_preflight": true,
+    "mutable_label_runtime_risk": true,
+    "separate_owner_activation_required": true,
+    "exact_lease_push_patch": "upstream/issue-orchestrator-0.10.0-io570-exact-lease-push.patch"
   }
 }

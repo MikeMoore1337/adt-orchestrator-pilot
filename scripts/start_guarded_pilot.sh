@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One-shot fail-closed launch for the original Issue-Orchestrator.
+# Stage-2 (#20/#21) one-shot fail-closed launch for ORIGINAL Issue-Orchestrator.
 # No scheduler, daemon, API key, CI bypass, automatic retry, or auto-merge.
 set -euo pipefail
 
@@ -40,6 +40,8 @@ EXPECTED_FILES="$(printf '%s\n' \
   'src/issue_orchestrator/entrypoints/cli_tools/agent_callback.py' \
   'src/issue_orchestrator/execution/agent_runner_providers/git_worktree_access.py' \
   'src/issue_orchestrator/execution/agent_runner_providers/sandbox.py' \
+  'src/issue_orchestrator/execution/git_push_operations.py' \
+  'src/issue_orchestrator/execution/git_working_copy.py' \
   'src/issue_orchestrator/infra/validation_timings.py')"
 [[ "$(git -C "$PATCHED_ENGINE" diff --name-only)" == "$EXPECTED_FILES" ]] ||
   fail "Patched original engine contains unknown or missing source modifications"
@@ -54,6 +56,9 @@ git -C "$PATCHED_ENGINE" apply --reverse --check \
 git -C "$PATCHED_ENGINE" apply --reverse --check \
   "$ROOT/upstream/issue-orchestrator-0.10.0-io570-codex-metadata-detached.patch" ||
   fail "Codex Git metadata and detached reviewer patch is absent or drifted"
+git -C "$PATCHED_ENGINE" apply --reverse --check \
+  "$ROOT/upstream/issue-orchestrator-0.10.0-io570-exact-lease-push.patch" ||
+  fail "Exact-lease push patch absent/drifted in patched original engine"
 export PYTHONPATH="$PATCHED_ENGINE/src"
 echo "ORIGINAL_ENGINE_NAMESPACED_SOURCE=PASS"
 export ISSUE_ORCHESTRATOR_CODEX_RUNTIME_ROOT="$HOME/.local/state/adt-io570/codex-runtime"
@@ -90,7 +95,7 @@ checks = {
     "repository": config.repo == "MikeMoore1337/adt-orchestrator-pilot",
     "seed_ref": config.worktree_seed_ref == "origin/main",
     "wip": config.max_concurrent_sessions == 1,
-    "pilot_label": config.filtering.label == "adt-io570-pilot-20261109",
+    "pilot_label": config.filtering.label == "adt-io570-stage2-20261114",
     "no_single_issue_filter": config.filtering.issue is None,
     "two_issue_limit": config.filtering.max_to_start == 2,
     "review_enabled": config.review_enabled,
@@ -108,37 +113,45 @@ then
   fail "Original queue configuration failed validation"
 fi
 
-# Owner-controlled synthetic pilot scope only, no unexpected labeled issues.
+# Fail-closed: exact Stage-2 membership and no unexpected OPEN Issues.
+# The pilot is disposable and only the two known tasks can run in this repo.
 SELECTED_RAW="$(
   gh issue list --repo MikeMoore1337/adt-orchestrator-pilot \
-    --state all --limit 100 --label adt-io570-pilot-20261109 \
+    --state all --limit 100 --label adt-io570-stage2-20261114 \
     --json number --jq '.[].number' | sort -n
-)" || fail "Cannot retrieve exact synthetic pilot label membership"
-[[ -n "$SELECTED_RAW" ]] ||
-  fail "No pilot-labeled issues"
-mapfile -t SELECTED <<< "$SELECTED_RAW"
-for issue in "${SELECTED[@]}"; do
-  [[ "$issue" == "7" || "$issue" == "8" ]] ||
-    fail "Unexpected pilot-labeled Issue #$issue"
+)" || fail "Cannot query Stage-2 membership"
+[[ "$SELECTED_RAW" == "$(printf '20\n21')" ]] ||
+  fail "Stage-2 label membership is not exactly Issues #20 and #21"
+
+OPEN_RAW="$(
+  gh issue list --repo MikeMoore1337/adt-orchestrator-pilot \
+    --state open --limit 100 --json number --jq '.[].number' | sort -n
+)" || fail "Cannot query all open Issues"
+while IFS= read -r issue; do
+  [[ -z "$issue" || "$issue" == "20" || "$issue" == "21" ]] ||
+    fail "Unexpected open Issue #$issue; keep this pilot isolated"
+done <<< "$OPEN_RAW"
+
+for issue in 20 21; do
+  ISSUE_STATE="$(
+    gh issue view "$issue" --repo MikeMoore1337/adt-orchestrator-pilot \
+      --json state,labels --jq '.state + " " + ([.labels[].name] | join(","))'
+  )" || fail "Cannot read scoped Issue #$issue"
+  [[ "$ISSUE_STATE" == *"adt-io570-stage2-20261114"* &&
+     "$ISSUE_STATE" == *"agent:dev"* ]] ||
+    fail "Stage-2 Issue #$issue missing scoped selection and agent labels"
+  for blocked in blocked-failed blocked needs-human publish-failed \
+     recovery-pending io:auto-retried-interrupted-coding; do
+    [[ "$ISSUE_STATE" != *"$blocked"* ]] ||
+      fail "Issue #$issue has $blocked; preserve and investigate, do not retry"
+  done
 done
-GH7="$(gh issue view 7 --repo MikeMoore1337/adt-orchestrator-pilot \
-  --json state,labels --jq '.state + " " + ([.labels[].name] | join(","))')" ||
-  fail "Cannot read #7 status"
-if [[ "$GH7" == *"blocked-failed"* ]]; then
-  fail "Issue #7 is blocked-failed. Preserve artifacts and fix the sandbox first"
-fi
-if [[ "$GH7" == *"io:auto-retried-interrupted-coding"* ]]; then
-  fail "Issue #7 has an interrupted-session retry marker; inspect the previous run before retrying"
-fi
-if [[ "$GH7" == *"needs-human"* ]]; then
-  fail "Issue #7 is needs-human; preserve the backed-up commit and resolve the human gate before restarting"
-fi
-GH8_BODY="$(gh issue view 8 --repo MikeMoore1337/adt-orchestrator-pilot \
-  --json body --jq '.body')" ||
-  fail "Cannot inspect Issue #8 dependency"
-grep -q '^Depends-on: #7' <<< "$GH8_BODY" ||
-  fail "Issue #8 is missing its original Depends-on: #7 directive"
-echo "PILOT_GITHUB_SCOPE=PASS"
+
+GH21_BODY="$(gh issue view 21 --repo MikeMoore1337/adt-orchestrator-pilot \
+  --json body --jq '.body')" || fail "Cannot inspect #21 dependency"
+grep -q '^Depends-on: #20' <<< "$GH21_BODY" ||
+  fail "Issue #21 must explicitly depend on #20"
+echo "PILOT_STAGE2_GITHUB_SCOPE=PASS"
 
 # Never inherit a potentially wider caller-supplied opt-in.
 [[ -z "${ISSUE_ORCHESTRATOR_IO570_LOOPBACK_PROXY:-}" ]] ||
@@ -159,6 +172,8 @@ export ISSUE_ORCHESTRATOR_IO570_LOOPBACK_PROXY=1
 "$ISSUE_ORCHESTRATOR_PYTHON" "$ROOT/scripts/probe_io570_completion_transport.py" ||
   fail "Codex callback transport did not pass the no-model authenticated canary"
 
+export ISSUE_ORCHESTRATOR_IO570_EXACT_LEASE_PUSH=1
+echo "IO570_EXACT_LEASE_PUSH=ENABLED_ONLY_FOR_20_21"
 echo "ORIGINAL_ENGINE_START=ORIGINAL_ENGINE_ONLY"
 echo "Continuous WIP=1 queue: wait for PR/merge/CI, no per-Issue relaunch."
 exec issue-orchestrator --config "$CONFIG" start \

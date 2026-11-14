@@ -1,4 +1,4 @@
-# SOURCE ONLY. Do NOT activate until host security, subscription login and issue-scope preflight pass.
+# STAGE-2 SOURCE ONLY; requires separate owner activation AFTER merged CI and host probes.
 # Owner authorizes Codex CLI via ChatGPT, NOT API-key billing.
 # Original issue-orchestrator v0.10.0, pinned d4a79824ccd806089cf3f70ec632d39b8ee255ea
 # Select explicitly via --mode upstream-pilot after the scoped pilot runtime preflight.
@@ -8,8 +8,8 @@ repo:
 worktrees:
   base: "../adt-orchestrator-pilot-worktrees"
   base_branch_override: main
-  # Seed from protected main. Do not start the engine until this preparation
-  # PR is human-merged: the agent prompts must exist on origin/main.
+  # Seed exclusively from protected origin/main after this Stage-2 PR is human merged.
+  # Never select an unmerged or draft PR commit.
   seed_ref: origin/main
 
 agents:
@@ -64,10 +64,10 @@ retry:
     enabled: false
 
 filtering:
-  label: "adt-io570-pilot-20261109"
+  label: "adt-io570-stage2-20261114"
   exclude_labels: ["HOLD", "blocked"]
-  # Synthetic repository only: exclusive, owner-controlled label admits #7/#8.
-  # WIP=1 and Depends-on: #7 ensure #8 cannot start before #7 is closed.
+  # Disposable synthetic repository only: one-shot launcher admits only open #20/#21.
+  # WIP=1 and Depends-on: #20 enforce order, with human merge between issues.
   # No single-issue override: retain one continuous original-engine queue.
   max_to_start: 2
 

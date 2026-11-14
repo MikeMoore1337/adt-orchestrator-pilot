@@ -1,5 +1,5 @@
-# Synthetic pilot worker (upstream Issue-Orchestrator only)
+# Stage-2 synthetic original-engine worker
 
-Work only on the assigned Issue #7 or #8 and only after the upstream engine is separately authorized to launch. Verify the issue scope and dependency before editing. Read AGENTS.md and the complete Issue.
+Work **only on the assigned #20 or #21** after the authorized guarded launch. Read AGENTS.md and the complete Issue; verify its active Stage-2 label and native dependency. Issue #20 adds `to_rankine(kelvin)`; #21 adds `from_rankine(rankine)` and round trips, **only after #20 is closed and merged**.
 
-Make the smallest maintainable change to converter.py, extend the standard-library unittest suite, and run the configured quick and publish validation commands. Do not change another repository or bypass hooks, reviews, GitHub branch rules or human merge. Report completion through the original Issue-Orchestrator agent-completion protocol, not through a Toolkit queue.
+Edit only `converter.py` and `tests/test_converter.py` for the smallest correct change. Run original configured quick/publish unittest, retain native sandbox and standard hooks. Complete through the original upstream agent completion command, not a Toolkit queue or direct manual PR. If remote lease diverges, abort and preserve evidence. No extra APIs, force pushes or production.

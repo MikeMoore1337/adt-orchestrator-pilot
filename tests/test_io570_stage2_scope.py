@@ -60,6 +60,12 @@ class Stage2ScopeTests(unittest.TestCase):
         self.assertIn("git_push_operations.py", ci)
         self.assertIn("git_working_copy.py", ci)
         self.assertIn("qa_host/test_io570_exact_lease_push.py", ci)
+        patchname = "issue-orchestrator-0.10.0-io570-persistent-callback-alias.patch"
+        for body in (patched, gated, ci):
+            self.assertIn(patchname, body)
+        self.assertIn("persistent_session_exchange.py", ci)
+        self.assertIn("test_io570_persistent_callback_alias.py", ci)
+
         self.assertIn("-s qa_host -p test_io570_exact_lease_push.py -v", ci)
 
     def test_git_push_integration_tests_are_not_agent_discoverable(self):

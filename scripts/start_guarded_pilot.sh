@@ -42,6 +42,7 @@ EXPECTED_FILES="$(printf '%s\n' \
   'src/issue_orchestrator/execution/agent_runner_providers/sandbox.py' \
   'src/issue_orchestrator/execution/git_push_operations.py' \
   'src/issue_orchestrator/execution/git_working_copy.py' \
+  'src/issue_orchestrator/execution/persistent_session_exchange.py' \
   'src/issue_orchestrator/infra/validation_timings.py')"
 [[ "$(git -C "$PATCHED_ENGINE" diff --name-only)" == "$EXPECTED_FILES" ]] ||
   fail "Patched original engine contains unknown or missing source modifications"
@@ -59,6 +60,9 @@ git -C "$PATCHED_ENGINE" apply --reverse --check \
 git -C "$PATCHED_ENGINE" apply --reverse --check \
   "$ROOT/upstream/issue-orchestrator-0.10.0-io570-exact-lease-push.patch" ||
   fail "Exact-lease push patch absent/drifted in patched original engine"
+git -C "$PATCHED_ENGINE" apply --reverse --check \
+  "$ROOT/upstream/issue-orchestrator-0.10.0-io570-persistent-callback-alias.patch" ||
+  fail "Persistent review-exchange scoped callback alias absent/drifted"
 export PYTHONPATH="$PATCHED_ENGINE/src"
 echo "ORIGINAL_ENGINE_NAMESPACED_SOURCE=PASS"
 export ISSUE_ORCHESTRATOR_CODEX_RUNTIME_ROOT="$HOME/.local/state/adt-io570/codex-runtime"

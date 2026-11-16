@@ -60,6 +60,20 @@ fi
 git -C "$target" apply --reverse --check "$lease_patch" ||
   { echo "EXACT_LEASE_PUSH_PATCH=FAIL" >&2; exit 1; }
 
+# Only the opt-in synthetic pilot needs the original persistent round's
+# Codex-safe *scoped* callback alias. The original source stays untouched.
+persistent_patch="$repo/upstream/issue-orchestrator-0.10.0-io570-persistent-callback-alias.patch"
+if ! git -C "$target" apply --reverse --check "$persistent_patch" >/dev/null 2>&1; then
+  test "$(git -C "$target" hash-object src/issue_orchestrator/execution/persistent_session_exchange.py)" = \
+    "7fde1ee2a9813e7b4e107b1fa46fb2436dfba0dd" ||
+    { echo "PERSISTENT_CALLBACK_SOURCE_PIN=FAIL" >&2; exit 1; }
+  git -C "$target" apply --check "$persistent_patch" ||
+    { echo "PERSISTENT_CALLBACK_APPLY=FAIL" >&2; exit 1; }
+  git -C "$target" apply "$persistent_patch"
+fi
+git -C "$target" apply --reverse --check "$persistent_patch" ||
+  { echo "PERSISTENT_CALLBACK_PATCH=FAIL" >&2; exit 1; }
+
 [[ "$(git -C "$target" rev-parse HEAD)" == "$pin" ]] ||
   { echo "PATCHED_ENGINE_SOURCE_PIN=FAIL" >&2; exit 1; }
 expected="$(printf '%s\n' \
@@ -71,6 +85,7 @@ expected="$(printf '%s\n' \
   'src/issue_orchestrator/execution/agent_runner_providers/sandbox.py' \
   'src/issue_orchestrator/execution/git_push_operations.py' \
   'src/issue_orchestrator/execution/git_working_copy.py' \
+  'src/issue_orchestrator/execution/persistent_session_exchange.py' \
   'src/issue_orchestrator/infra/validation_timings.py')"
 actual="$(git -C "$target" diff --name-only)"
 [[ "$actual" == "$expected" ]] ||
@@ -78,6 +93,7 @@ actual="$(git -C "$target" diff --name-only)"
 git -C "$target" diff --check
 echo "PATCHED_ENGINE_FILES=PASS"
 echo "EXACT_LEASE_PUSH_PATCH=PASS"
+echo "PERSISTENT_CALLBACK_PATCH=PASS"
 echo "ORIGINAL_ENGINE_UNMODIFIED=YES"
 echo "NAMESPACED_ENGINE_READY_FOR_NO_MODEL_PROBE=YES"
 echo "PATCHED_ENGINE_PATH=$target"
